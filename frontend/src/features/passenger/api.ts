@@ -13,11 +13,14 @@ import type {
   RideRequest,
   RideRequestPayload,
   RideStatus,
+  VietnamProvinceOption,
+  VietnamWardOption,
 } from "@/features/passenger/types";
 
 interface VietnamProvinceApiItem {
   name: string;
   code: number;
+  wards?: VietnamWardApiItem[];
 }
 
 interface VietnamWardApiItem {
@@ -169,6 +172,30 @@ async function getVietnamProvinces(): Promise<VietnamProvinceApiItem[]> {
   const response = await vietnamAdminClient.get<VietnamProvinceApiItem[]>("/p/");
   provinceCache = response.data;
   return provinceCache;
+}
+
+export async function getVietnamProvinceOptions(): Promise<VietnamProvinceOption[]> {
+  const provinces = await getVietnamProvinces();
+  return provinces
+    .map((province) => ({
+      code: province.code,
+      name: province.name,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function getVietnamWardOptions(provinceCode: number): Promise<VietnamWardOption[]> {
+  const response = await vietnamAdminClient.get<VietnamProvinceApiItem>(`/p/${provinceCode}`, {
+    params: { depth: 2 },
+  });
+
+  return (response.data.wards ?? [])
+    .map((ward) => ({
+      code: ward.code,
+      name: ward.name,
+      province_code: ward.province_code,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function provinceNameFor(provinces: VietnamProvinceApiItem[], provinceCode: number): string {
@@ -450,4 +477,6 @@ export const passengerApi = {
   normalizeVietnamLocation,
   searchVietnamLocationSuggestions,
   reverseGeocodeDeviceLocation,
+  getVietnamProvinceOptions,
+  getVietnamWardOptions,
 };

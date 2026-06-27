@@ -13,6 +13,9 @@ const passengerKeys = {
   rideStatus: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-status"] as const,
   rideHistory: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-history"] as const,
   notifications: (passengerId: string) => [...passengerKeys.all(passengerId), "notifications"] as const,
+  vietnamProvinces: () => ["passenger", "vietnam-provinces"] as const,
+  vietnamWards: (provinceCode: number | null) =>
+    ["passenger", "vietnam-wards", provinceCode] as const,
   locationSuggestions: (query: string, coordinates?: DeviceCoordinates | null) =>
     [
       "passenger",
@@ -110,6 +113,23 @@ export function useMarkPassengerNotificationRead(passengerId: string) {
 export function useNormalizeVietnamLocation() {
   return useMutation({
     mutationFn: (input: string) => passengerApi.normalizeVietnamLocation(input),
+  });
+}
+
+export function useVietnamProvinceOptions() {
+  return useQuery({
+    queryKey: passengerKeys.vietnamProvinces(),
+    queryFn: passengerApi.getVietnamProvinceOptions,
+    staleTime: 24 * 60 * 60 * 1_000,
+  });
+}
+
+export function useVietnamWardOptions(provinceCode: number | null) {
+  return useQuery({
+    queryKey: passengerKeys.vietnamWards(provinceCode),
+    queryFn: () => passengerApi.getVietnamWardOptions(provinceCode ?? 0),
+    enabled: provinceCode !== null,
+    staleTime: 24 * 60 * 60 * 1_000,
   });
 }
 

@@ -100,3 +100,14 @@ export interface PassengerLocationSuggestion {
   longitude: number;
   distance_meters: number | null;
 }
+
+export interface VietnamProvinceOption {
+  code: number;
+  name: string;
+}
+
+export interface VietnamWardOption {
+  code: number;
+  name: string;
+  province_code: number;
+}

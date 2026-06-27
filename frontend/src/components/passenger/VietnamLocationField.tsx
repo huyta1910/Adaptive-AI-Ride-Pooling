@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import {
   useNormalizeVietnamLocation,
   useReverseGeocodeDeviceLocation,
+  useVietnamProvinceOptions,
+  useVietnamWardOptions,
 } from "@/features/passenger/hooks";
 import type {
   DeviceCoordinates,
@@ -29,6 +31,7 @@ interface AddressParts {
   road: string;
   ward: string;
   cityOrProvince: string;
+  provinceCode: number | null;
 }
 
 function formatAdministrativeLocation(location: VietnamAdministrativeLocation): string {
@@ -40,6 +43,15 @@ function composeAddress(parts: AddressParts): string {
     .map((part) => part.trim())
     .filter(Boolean)
     .join(", ");
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function partsFromSuggestion(suggestion: PassengerLocationSuggestion): AddressParts {
@@ -56,6 +68,7 @@ function partsFromSuggestion(suggestion: PassengerLocationSuggestion): AddressPa
       addressParts.find((part) => /ho chi minh|ha noi|da nang|city|province/i.test(part)) ??
       addressParts.at(-2) ??
       "",
+    provinceCode: null,
   };
 }
 
@@ -73,17 +86,32 @@ export function VietnamLocationField({
     road: "",
     ward: "",
     cityOrProvince: "",
+    provinceCode: null,
   });
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "allowed" | "blocked">(
     "idle",
   );
   const normalizeLocation = useNormalizeVietnamLocation();
   const reverseGeocode = useReverseGeocodeDeviceLocation();
+  const provinces = useVietnamProvinceOptions();
+  const wards = useVietnamWardOptions(addressParts.provinceCode);
   const candidates =
     normalizeLocation.data?.status === "success" && normalizeLocation.data.matched_location
       ? [normalizeLocation.data.matched_location, ...normalizeLocation.data.alternatives]
       : normalizeLocation.data?.alternatives ?? [];
   const composedAddress = useMemo(() => composeAddress(addressParts), [addressParts]);
+  const selectedWardCode =
+    wards.data?.find((ward) => ward.name === addressParts.ward)?.code ??
+    wards.data?.find((ward) => {
+      const normalizedWard = normalizeText(ward.name);
+      const normalizedAddressWard = normalizeText(addressParts.ward);
+      return (
+        normalizedAddressWard.length > 0 &&
+        (normalizedWard.includes(normalizedAddressWard) ||
+          normalizedAddressWard.includes(normalizedWard))
+      );
+    })?.code ??
+    "";
 
   useEffect(() => {
     if (value.length === 0 && composedAddress.length > 0) {
@@ -92,12 +120,50 @@ export function VietnamLocationField({
         road: "",
         ward: "",
         cityOrProvince: "",
+        provinceCode: null,
       });
     }
   }, [composedAddress.length, value.length]);
 
+  useEffect(() => {
+    if (!wards.data || addressParts.ward.length === 0) {
+      return;
+    }
+
+    const matchedWard = wards.data.find((ward) => String(ward.code) === String(selectedWardCode));
+    if (matchedWard && matchedWard.name !== addressParts.ward) {
+      const nextParts = { ...addressParts, ward: matchedWard.name };
+      setAddressParts(nextParts);
+      onChange(composeAddress(nextParts));
+    }
+  }, [addressParts, onChange, selectedWardCode, wards.data]);
+
   const updateAddressPart = (key: keyof AddressParts, nextValue: string) => {
     const nextParts = { ...addressParts, [key]: nextValue };
+    setAddressParts(nextParts);
+    onChange(composeAddress(nextParts));
+  };
+
+  const handleProvinceChange = (provinceCodeValue: string) => {
+    const provinceCode = provinceCodeValue ? Number(provinceCodeValue) : null;
+    const provinceName =
+      provinces.data?.find((province) => province.code === provinceCode)?.name ?? "";
+    const nextParts = {
+      ...addressParts,
+      ward: "",
+      cityOrProvince: provinceName,
+      provinceCode,
+    };
+    setAddressParts(nextParts);
+    onChange(composeAddress(nextParts));
+  };
+
+  const handleWardChange = (wardCodeValue: string) => {
+    const ward = wards.data?.find((item) => String(item.code) === wardCodeValue);
+    const nextParts = {
+      ...addressParts,
+      ward: ward?.name ?? "",
+    };
     setAddressParts(nextParts);
     onChange(composeAddress(nextParts));
   };
@@ -112,12 +178,22 @@ export function VietnamLocationField({
       ...currentParts,
       ward: location.commune_or_ward,
       cityOrProvince: location.province,
+      provinceCode:
+        provinces.data?.find((province) => province.name === location.province)?.code ?? null,
     }));
     onChange(formattedLocation);
   };
 
   const applyDeviceLocation = (suggestion: PassengerLocationSuggestion) => {
-    const nextParts = partsFromSuggestion(suggestion);
+    const inferredParts = partsFromSuggestion(suggestion);
+    const matchedProvince = provinces.data?.find((province) =>
+      normalizeText(suggestion.address).includes(normalizeText(province.name)),
+    );
+    const nextParts = {
+      ...inferredParts,
+      cityOrProvince: matchedProvince?.name ?? inferredParts.cityOrProvince,
+      provinceCode: matchedProvince?.code ?? null,
+    };
     setAddressParts(nextParts);
     onChange(composeAddress(nextParts) || suggestion.label);
     normalizeLocation.mutate(suggestion.label);
@@ -180,22 +256,40 @@ export function VietnamLocationField({
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Input
-          value={addressParts.ward}
-          onChange={(event) => updateAddressPart("ward", event.target.value)}
+        <select
+          value={addressParts.provinceCode ?? ""}
+          onChange={(event) => handleProvinceChange(event.target.value)}
           aria-invalid={Boolean(error)}
-          placeholder="Ward, commune, or special zone"
-          disabled={disabled || isBusy}
-          autoComplete="off"
-        />
-        <Input
-          value={addressParts.cityOrProvince}
-          onChange={(event) => updateAddressPart("cityOrProvince", event.target.value)}
+          disabled={disabled || isBusy || provinces.isLoading}
+          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">{provinces.isLoading ? "Loading provinces..." : "City or province"}</option>
+          {provinces.data?.map((province) => (
+            <option key={province.code} value={province.code}>
+              {province.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedWardCode}
+          onChange={(event) => handleWardChange(event.target.value)}
           aria-invalid={Boolean(error)}
-          placeholder="City or province"
-          disabled={disabled || isBusy}
-          autoComplete="off"
-        />
+          disabled={disabled || isBusy || addressParts.provinceCode === null || wards.isLoading}
+          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">
+            {addressParts.provinceCode === null
+              ? "Choose province first"
+              : wards.isLoading
+                ? "Loading wards..."
+                : "Ward, commune, or special zone"}
+          </option>
+          {wards.data?.map((ward) => (
+            <option key={ward.code} value={ward.code}>
+              {ward.name}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
