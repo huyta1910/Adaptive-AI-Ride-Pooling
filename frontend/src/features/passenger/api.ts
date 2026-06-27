@@ -40,6 +40,23 @@ interface NominatimSearchItem {
   lon: string;
 }
 
+interface NominatimReverseItem {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  address?: {
+    house_number?: string;
+    road?: string;
+    pedestrian?: string;
+    quarter?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    state?: string;
+  };
+}
+
 const vietnamAdminClient = axios.create({
   baseURL: "https://provinces.open-api.vn/api/v2",
   timeout: 10_000,
@@ -375,6 +392,34 @@ export async function searchVietnamLocationSuggestions(
     });
 }
 
+export async function reverseGeocodeDeviceLocation(
+  coordinates: DeviceCoordinates,
+): Promise<PassengerLocationSuggestion> {
+  const response = await mapSearchClient.get<NominatimReverseItem>("/reverse", {
+    params: {
+      lat: coordinates.latitude,
+      lon: coordinates.longitude,
+      format: "jsonv2",
+      addressdetails: 1,
+      zoom: 18,
+    },
+  });
+  const item = response.data;
+  const address = item.address;
+  const road = address?.road ?? address?.pedestrian;
+  const name = [address?.house_number, road].filter(Boolean).join(" ") || item.display_name;
+
+  return {
+    id: String(item.place_id),
+    label: item.display_name,
+    name,
+    address: item.display_name,
+    latitude: Number(item.lat),
+    longitude: Number(item.lon),
+    distance_meters: 0,
+  };
+}
+
 export const passengerApi = {
   getDashboard(passengerId: string) {
     return unwrap<PassengerDashboard>(apiClient.get(`/passengers/${passengerId}/dashboard`));
@@ -404,4 +449,5 @@ export const passengerApi = {
   },
   normalizeVietnamLocation,
   searchVietnamLocationSuggestions,
+  reverseGeocodeDeviceLocation,
 };

@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, LocateFixed, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   useNormalizeVietnamLocation,
-  useVietnamLocationSuggestions,
+  useReverseGeocodeDeviceLocation,
 } from "@/features/passenger/hooks";
 import type {
   DeviceCoordinates,
@@ -24,20 +24,39 @@ interface VietnamLocationFieldProps {
   placeholder?: string;
 }
 
+interface AddressParts {
+  houseNumber: string;
+  road: string;
+  ward: string;
+  cityOrProvince: string;
+}
+
 function formatAdministrativeLocation(location: VietnamAdministrativeLocation): string {
   return `${location.commune_or_ward}, ${location.province}`;
 }
 
-function formatDistance(distanceMeters: number | null): string {
-  if (distanceMeters === null) {
-    return "";
-  }
+function composeAddress(parts: AddressParts): string {
+  return [parts.houseNumber, parts.road, parts.ward, parts.cityOrProvince]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
 
-  if (distanceMeters < 1_000) {
-    return `${distanceMeters} m`;
-  }
+function partsFromSuggestion(suggestion: PassengerLocationSuggestion): AddressParts {
+  const addressParts = suggestion.address.split(",").map((part) => part.trim());
+  const firstLineParts = suggestion.name.split(" ").filter(Boolean);
+  const houseNumber = firstLineParts[0]?.match(/^\d+[a-zA-Z]?/) ? firstLineParts[0] : "";
+  const road = houseNumber ? firstLineParts.slice(1).join(" ") : suggestion.name;
 
-  return `${(distanceMeters / 1_000).toFixed(1)} km`;
+  return {
+    houseNumber,
+    road,
+    ward: addressParts.find((part) => /phuong|ward|xa|commune/i.test(part)) ?? "",
+    cityOrProvince:
+      addressParts.find((part) => /ho chi minh|ha noi|da nang|city|province/i.test(part)) ??
+      addressParts.at(-2) ??
+      "",
+  };
 }
 
 export function VietnamLocationField({
@@ -49,42 +68,59 @@ export function VietnamLocationField({
   error,
   placeholder,
 }: VietnamLocationFieldProps) {
-  const [coordinates, setCoordinates] = useState<DeviceCoordinates | null>(null);
+  const [addressParts, setAddressParts] = useState<AddressParts>({
+    houseNumber: "",
+    road: "",
+    ward: "",
+    cityOrProvince: "",
+  });
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "allowed" | "blocked">(
     "idle",
   );
-  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  const blurTimeoutRef = useRef<number | null>(null);
   const normalizeLocation = useNormalizeVietnamLocation();
-  const suggestions = useVietnamLocationSuggestions(debouncedValue, coordinates);
+  const reverseGeocode = useReverseGeocodeDeviceLocation();
   const candidates =
     normalizeLocation.data?.status === "success" && normalizeLocation.data.matched_location
       ? [normalizeLocation.data.matched_location, ...normalizeLocation.data.alternatives]
       : normalizeLocation.data?.alternatives ?? [];
-  const visibleSuggestions = useMemo(
-    () => suggestions.data?.slice(0, 6) ?? [],
-    [suggestions.data],
-  );
+  const composedAddress = useMemo(() => composeAddress(addressParts), [addressParts]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedValue(value);
-    }, 250);
+    if (value.length === 0 && composedAddress.length > 0) {
+      setAddressParts({
+        houseNumber: "",
+        road: "",
+        ward: "",
+        cityOrProvince: "",
+      });
+    }
+  }, [composedAddress.length, value.length]);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [value]);
-
-  useEffect(() => {
-    return () => {
-      if (blurTimeoutRef.current) {
-        window.clearTimeout(blurTimeoutRef.current);
-      }
-    };
-  }, []);
+  const updateAddressPart = (key: keyof AddressParts, nextValue: string) => {
+    const nextParts = { ...addressParts, [key]: nextValue };
+    setAddressParts(nextParts);
+    onChange(composeAddress(nextParts));
+  };
 
   const handleNormalize = () => {
-    normalizeLocation.mutate(value);
+    normalizeLocation.mutate(composedAddress || value);
+  };
+
+  const handleSelect = (location: VietnamAdministrativeLocation) => {
+    const formattedLocation = formatAdministrativeLocation(location);
+    setAddressParts((currentParts) => ({
+      ...currentParts,
+      ward: location.commune_or_ward,
+      cityOrProvince: location.province,
+    }));
+    onChange(formattedLocation);
+  };
+
+  const applyDeviceLocation = (suggestion: PassengerLocationSuggestion) => {
+    const nextParts = partsFromSuggestion(suggestion);
+    setAddressParts(nextParts);
+    onChange(composeAddress(nextParts) || suggestion.label);
+    normalizeLocation.mutate(suggestion.label);
   };
 
   const handleUseDeviceLocation = () => {
@@ -96,11 +132,17 @@ export function VietnamLocationField({
     setLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setCoordinates({
+        const coordinates: DeviceCoordinates = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+        };
+        reverseGeocode.mutate(coordinates, {
+          onSuccess: (suggestion) => {
+            applyDeviceLocation(suggestion);
+            setLocationStatus("allowed");
+          },
+          onError: () => setLocationStatus("blocked"),
         });
-        setLocationStatus("allowed");
       },
       () => setLocationStatus("blocked"),
       {
@@ -111,117 +153,84 @@ export function VietnamLocationField({
     );
   };
 
-  const handleSelect = (location: VietnamAdministrativeLocation) => {
-    onChange(formatAdministrativeLocation(location));
-  };
-
-  const handleSuggestionSelect = (suggestion: PassengerLocationSuggestion) => {
-    onChange(suggestion.label);
-    setIsSuggestionOpen(false);
-    normalizeLocation.mutate(suggestion.label);
-  };
-
-  const handleInputBlur = () => {
-    blurTimeoutRef.current = window.setTimeout(() => setIsSuggestionOpen(false), 150);
-  };
+  const isBusy = normalizeLocation.isPending || reverseGeocode.isPending;
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
       <div className="flex items-center gap-2 text-sm font-medium">
         {icon}
         {label}
       </div>
-      <div className="flex gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Input
-            value={value}
-            onChange={(event) => {
-              onChange(event.target.value);
-              setIsSuggestionOpen(true);
-            }}
-            onFocus={() => setIsSuggestionOpen(true)}
-            onBlur={handleInputBlur}
-            aria-invalid={Boolean(error)}
-            placeholder={placeholder}
-            disabled={disabled || normalizeLocation.isPending}
-            autoComplete="off"
-          />
-          {isSuggestionOpen && value.trim().length >= 2 ? (
-            <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
-              {suggestions.isLoading ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">Searching nearby...</div>
-              ) : null}
-              {suggestions.isError ? (
-                <div className="px-3 py-2 text-sm text-destructive">
-                  Location suggestions are unavailable.
-                </div>
-              ) : null}
-              {!suggestions.isLoading && !suggestions.isError && visibleSuggestions.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">
-                  No nearby suggestions found.
-                </div>
-              ) : null}
-              {visibleSuggestions.map((suggestion) => (
-                <button
-                  key={suggestion.id}
-                  type="button"
-                  className="grid w-full gap-1 rounded-sm px-3 py-2 text-left text-sm hover:bg-accent"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleSuggestionSelect(suggestion)}
-                >
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="truncate font-medium">{suggestion.name}</span>
-                    {suggestion.distance_meters !== null ? (
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {formatDistance(suggestion.distance_meters)}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="line-clamp-2 text-xs text-muted-foreground">
-                    {suggestion.address}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+      <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+        <Input
+          value={addressParts.houseNumber}
+          onChange={(event) => updateAddressPart("houseNumber", event.target.value)}
+          aria-invalid={Boolean(error)}
+          placeholder="Home no."
+          disabled={disabled || isBusy}
+          autoComplete="off"
+        />
+        <Input
+          value={addressParts.road}
+          onChange={(event) => updateAddressPart("road", event.target.value)}
+          aria-invalid={Boolean(error)}
+          placeholder={placeholder ?? "Road or building"}
+          disabled={disabled || isBusy}
+          autoComplete="off"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input
+          value={addressParts.ward}
+          onChange={(event) => updateAddressPart("ward", event.target.value)}
+          aria-invalid={Boolean(error)}
+          placeholder="Ward, commune, or special zone"
+          disabled={disabled || isBusy}
+          autoComplete="off"
+        />
+        <Input
+          value={addressParts.cityOrProvince}
+          onChange={(event) => updateAddressPart("cityOrProvince", event.target.value)}
+          aria-invalid={Boolean(error)}
+          placeholder="City or province"
+          disabled={disabled || isBusy}
+          autoComplete="off"
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="outline"
-          size="icon"
           onClick={handleUseDeviceLocation}
-          disabled={disabled || locationStatus === "loading"}
-          title="Use device location for nearby suggestions"
-          aria-label={`Use device location for ${label}`}
+          disabled={disabled || locationStatus === "loading" || reverseGeocode.isPending}
         >
-          {locationStatus === "loading" ? (
+          {locationStatus === "loading" || reverseGeocode.isPending ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <LocateFixed className="h-4 w-4" aria-hidden="true" />
           )}
+          Choose current location
         </Button>
         <Button
           type="button"
           variant="outline"
-          size="icon"
           onClick={handleNormalize}
-          disabled={disabled || normalizeLocation.isPending || value.trim().length < 2}
-          title="Normalize Vietnam administrative location"
-          aria-label={`Normalize ${label}`}
+          disabled={disabled || normalizeLocation.isPending || (composedAddress || value).length < 2}
         >
           {normalizeLocation.isPending ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <Search className="h-4 w-4" aria-hidden="true" />
           )}
+          Normalize
         </Button>
       </div>
       {locationStatus === "allowed" ? (
-        <p className="text-xs text-muted-foreground">Nearby suggestions are using device location.</p>
+        <p className="text-xs text-muted-foreground">Current device location was applied.</p>
       ) : null}
       {locationStatus === "blocked" ? (
         <p className="text-xs text-muted-foreground">
-          Device location is unavailable. Suggestions still search across Vietnam.
+          Device location is unavailable. Enter the address manually.
         </p>
       ) : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

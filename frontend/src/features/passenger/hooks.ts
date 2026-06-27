@@ -126,3 +126,10 @@ export function useVietnamLocationSuggestions(
     staleTime: 60_000,
   });
 }
+
+export function useReverseGeocodeDeviceLocation() {
+  return useMutation({
+    mutationFn: (coordinates: DeviceCoordinates) =>
+      passengerApi.reverseGeocodeDeviceLocation(coordinates),
+  });
+}
