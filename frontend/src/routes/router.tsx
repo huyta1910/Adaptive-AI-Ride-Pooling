@@ -10,6 +10,7 @@ import { NotFoundPage } from "@/pages/NotFoundPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { PassengerDashboardPage } from "@/pages/PassengerDashboardPage";
 import { ProfilePage } from "@/pages/ProfilePage";
+import { SignupPage } from "@/pages/SignupPage";
 import { TripDetailPage } from "@/pages/TripDetailPage";
 import { ROUTES } from "@/routes/constants";
 
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
     children: [
       { path: ROUTES.home, element: <HomePage /> },
       { path: ROUTES.login, element: <LoginPage /> },
+      { path: ROUTES.signup, element: <SignupPage /> },
     ],
   },
   {

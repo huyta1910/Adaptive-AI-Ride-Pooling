@@ -15,5 +15,9 @@ class RidePoolMember(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("ride_pool_groups.id"),
         nullable=False,
     )
-    booking_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    booking_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("bookings.id"),
+        nullable=False,
+    )
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")

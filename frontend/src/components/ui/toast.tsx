@@ -54,7 +54,9 @@ function ToastViewport({ items }: { items: ToastItem[] }) {
           className={cn("rounded-lg border bg-card p-4 text-card-foreground shadow-soft")}
         >
           <p className="text-sm font-semibold">{item.title}</p>
-          {item.description ? <p className="mt-1 text-sm text-muted-foreground">{item.description}</p> : null}
+          {item.description ? (
+            <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+          ) : null}
         </div>
       ))}
     </div>

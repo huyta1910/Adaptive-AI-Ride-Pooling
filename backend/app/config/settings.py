@@ -5,14 +5,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     project_name: str = "Adaptive AI Ride Pooling"
     api_version: str = "0.1.0"
     api_v1_prefix: str = "/api/v1"
     environment: str = "local"
     database_url: str = Field(
-        default="postgresql+psycopg://adaptive_user:adaptive_password@localhost:5432/adaptive_ride_pooling",
+        default=(
+            "postgresql+psycopg://adaptive_user:adaptive_password"
+            "@localhost:5432/adaptive_ride_pooling"
+        ),
         validation_alias="DATABASE_URL",
     )
     backend_cors_origins: str = Field(
