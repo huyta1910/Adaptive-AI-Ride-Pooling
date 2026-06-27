@@ -7,6 +7,8 @@ from sqlalchemy import Date as DateType
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
+from app.models.ride_pool_group import RidePoolGroup
+from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
 
 ACTIVE_TRIP_STATUSES = ("assigned", "en_route", "in_progress")
@@ -124,6 +126,53 @@ class DriverTripRepository:
         self.session.commit()
         self.session.refresh(trip)
         return trip
+
+    def update_pool_lifecycle_for_booking(
+        self,
+        driver_id: UUID,
+        booking_id: UUID,
+        trip_status: str,
+        booking_status: str,
+        member_status: str,
+        group_status: str,
+        completed_at: datetime | None = None,
+    ) -> None:
+        group_statement = (
+            select(RidePoolGroup)
+            .join(RidePoolMember, RidePoolMember.ride_pool_group_id == RidePoolGroup.id)
+            .where(
+                RidePoolMember.booking_id == booking_id,
+                RidePoolGroup.driver_id == driver_id,
+            )
+        )
+        group = self.session.scalars(group_statement).first()
+        if group is None:
+            return
+
+        member_statement = (
+            select(RidePoolMember, Booking, TripHistory)
+            .join(Booking, Booking.id == RidePoolMember.booking_id)
+            .join(TripHistory, TripHistory.booking_id == Booking.id)
+            .where(
+                RidePoolMember.ride_pool_group_id == group.id,
+                TripHistory.driver_id == driver_id,
+            )
+        )
+        for member, booking, trip in self.session.execute(member_statement).all():
+            member.status = member_status
+            booking.status = booking_status
+            trip.status = trip_status
+            if completed_at is not None and trip.completed_at is None:
+                trip.completed_at = completed_at
+            if trip_status == COMPLETED_TRIP_STATUS and trip.total_fare is None:
+                trip.total_fare = booking.estimated_fare
+
+            self.session.add(member)
+            self.session.add(booking)
+            self.session.add(trip)
+
+        group.status = group_status
+        self.session.add(group)
 
     # --- Earnings ---
 

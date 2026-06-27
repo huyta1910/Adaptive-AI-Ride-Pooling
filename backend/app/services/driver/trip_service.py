@@ -103,14 +103,35 @@ class TripService:
         self._assert_transition_allowed(trip.status, target)
 
         trip.status = target
+        completed_at = None
         if target == DriverTripStatus.completed.value:
-            trip.completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(timezone.utc)
+            trip.completed_at = completed_at
             if trip.total_fare is None and booking is not None:
                 trip.total_fare = booking.estimated_fare
 
         # Mirror the lifecycle onto the booking so the passenger sees progress.
         if booking is not None:
             booking.status = _BOOKING_STATUS_FOR_TRIP.get(target, booking.status)
+            if target == DriverTripStatus.completed.value:
+                self._trips.update_pool_lifecycle_for_booking(
+                    driver_id=driver_id,
+                    booking_id=booking.id,
+                    trip_status=target,
+                    booking_status="completed",
+                    member_status="completed",
+                    group_status="completed",
+                    completed_at=completed_at,
+                )
+            elif target == DriverTripStatus.cancelled.value:
+                self._trips.update_pool_lifecycle_for_booking(
+                    driver_id=driver_id,
+                    booking_id=booking.id,
+                    trip_status=target,
+                    booking_status="cancelled",
+                    member_status="cancelled",
+                    group_status="cancelled",
+                )
 
         saved = self._trips.save(trip, booking)
         return self._to_detail(saved, booking)
