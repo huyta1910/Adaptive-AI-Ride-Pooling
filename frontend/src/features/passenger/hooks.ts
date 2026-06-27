@@ -153,3 +153,9 @@ export function useReverseGeocodeDeviceLocation() {
       passengerApi.reverseGeocodeDeviceLocation(coordinates),
   });
 }
+
+export function useGeocodeVietnamAddress() {
+  return useMutation({
+    mutationFn: (address: string) => passengerApi.geocodeVietnamAddress(address),
+  });
+}
