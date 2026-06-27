@@ -74,6 +74,72 @@ function normalizeLocationInput(value: string): string {
     .trim();
 }
 
+function cleanAddressPart(value: string): string {
+  return value
+    .trim()
+    .replace(/^\d+[a-zA-Z]?([/-]\d+[a-zA-Z]?)*\s+/, "")
+    .replace(/\b\d{5,6}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isUsefulAdministrativePart(value: string): boolean {
+  const normalizedValue = normalizeLocationInput(value);
+
+  if (normalizedValue.length < 2) {
+    return false;
+  }
+
+  if (["vietnam", "viet nam"].includes(normalizedValue)) {
+    return false;
+  }
+
+  if (/^\d+$/.test(normalizedValue)) {
+    return false;
+  }
+
+  return true;
+}
+
+function withoutAdministrativePrefix(value: string): string {
+  return value
+    .replace(/^\s*(phuong|p\.|xa|thi tran|tt\.|dac khu|quan|q\.|huyen|h\.|thanh pho|tp\.|tinh)\s+/i, "")
+    .trim();
+}
+
+function buildAdministrativeSearchTerms(input: string, provinces: VietnamProvinceApiItem[]): string[] {
+  const parts = input
+    .split(",")
+    .map(cleanAddressPart)
+    .filter(isUsefulAdministrativePart);
+  const provinceHints = provinces.filter((province) =>
+    normalizeLocationInput(input).includes(normalizeLocationInput(province.name)),
+  );
+  const wardLikeParts = parts.filter((part) =>
+    /(^|\s)(phuong|p\.|xa|thi tran|tt\.|dac khu)(\s|$)/i.test(part),
+  );
+  const nonStreetParts = parts.filter(
+    (part) => !/(^|\s)(duong|street|road|hem|ngo|alley|khu pho)(\s|$)/i.test(part),
+  );
+  const terms = [...wardLikeParts, ...nonStreetParts, ...parts, cleanAddressPart(input)];
+
+  wardLikeParts.forEach((part) => {
+    const strippedPart = withoutAdministrativePrefix(part);
+    if (strippedPart) {
+      terms.push(strippedPart);
+    }
+
+    provinceHints.forEach((province) => {
+      terms.push(`${part}, ${province.name}`);
+      if (strippedPart) {
+        terms.push(`${strippedPart}, ${province.name}`);
+      }
+    });
+  });
+
+  return [...new Set(terms.map(cleanAddressPart).filter(isUsefulAdministrativePart))];
+}
+
 function displayLocation(ward: VietnamWardApiItem, provinceName: string): string {
   return `${ward.name}, ${provinceName}`;
 }
@@ -124,12 +190,8 @@ function scoreWard(
 
 async function findVietnamLocationCandidates(input: string) {
   const normalizedInput = normalizeLocationInput(input);
-  const queryParts = input
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => normalizeLocationInput(part).length >= 2);
-  const searchTerms = [...new Set([input.trim(), ...queryParts].filter(Boolean))];
   const provinces = await getVietnamProvinces();
+  const searchTerms = buildAdministrativeSearchTerms(input, provinces);
   const hintedProvince = provinces.find((province) =>
     normalizedInput.includes(normalizeLocationInput(province.name)),
   );
@@ -144,15 +206,25 @@ async function findVietnamLocationCandidates(input: string) {
   ]);
 
   const settledResults = await Promise.allSettled(requests);
-  const candidateMap = new Map<string, { ward: VietnamWardApiItem; source: "legacy" | "current" }>();
+  const candidateMap = new Map<
+    string,
+    { ward: VietnamWardApiItem; source: "legacy" | "current"; confidence: number }
+  >();
 
-  settledResults.forEach((result) => {
+  settledResults.forEach((result, index) => {
     if (result.status === "fulfilled") {
+      const term = searchTerms[Math.floor(index / 2)] ?? input;
+      const normalizedTerm = normalizeLocationInput(term);
       result.value.forEach((candidate) => {
         const key = String(candidate.ward.code);
         const existing = candidateMap.get(key);
-        if (!existing || existing.source === "current") {
-          candidateMap.set(key, candidate);
+        const confidence = Math.max(
+          scoreWard(candidate.ward, normalizedTerm, candidate.source, Boolean(hintedProvince)),
+          scoreWard(candidate.ward, normalizedInput, candidate.source, Boolean(hintedProvince)) - 0.04,
+        );
+
+        if (!existing || confidence > existing.confidence) {
+          candidateMap.set(key, { ...candidate, confidence });
         }
       });
     }
@@ -168,12 +240,7 @@ async function findVietnamLocationCandidates(input: string) {
         province,
         commune_or_ward: candidate.ward.name,
         administrative_code: String(candidate.ward.code),
-        confidence: scoreWard(
-          candidate.ward,
-          normalizedInput,
-          candidate.source,
-          Boolean(hintedProvince),
-        ),
+        confidence: candidate.confidence,
       };
     })
     .sort((left, right) => right.confidence - left.confidence || left.province.localeCompare(right.province));
