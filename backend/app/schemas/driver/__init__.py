@@ -4,7 +4,12 @@ from app.schemas.driver.driver import (
     AvailabilityUpdate,
     DriverRead,
 )
-from app.schemas.driver.trip import DriverTripRead
+from app.schemas.driver.trip import (
+    DriverTripDetail,
+    DriverTripRead,
+    DriverTripStatus,
+    TripStatusUpdate,
+)
 
 __all__ = [
     "AvailabilityStatus",
@@ -13,4 +18,7 @@ __all__ = [
     "DriverDashboard",
     "DriverDashboardStats",
     "DriverTripRead",
+    "DriverTripDetail",
+    "DriverTripStatus",
+    "TripStatusUpdate",
 ]

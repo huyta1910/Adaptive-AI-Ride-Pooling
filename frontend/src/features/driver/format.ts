@@ -19,3 +19,15 @@ const DRIVER_TRIP_STATUS_LABELS: Record<string, string> = {
 export function formatTripStatus(status: string): string {
   return DRIVER_TRIP_STATUS_LABELS[status] ?? status;
 }
+
+const dateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+export function formatDriverDateTime(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+  return dateTimeFormatter.format(new Date(value));
+}

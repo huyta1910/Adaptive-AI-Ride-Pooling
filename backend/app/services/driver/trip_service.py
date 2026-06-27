@@ -1,0 +1,116 @@
+from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import HTTPException, status
+
+from app.models.booking import Booking
+from app.models.trip_history import TripHistory
+from app.repositories.driver.trip_repository import DriverTripRepository
+from app.schemas.common import PaginatedResponse
+from app.schemas.driver.trip import (
+    DriverTripDetail,
+    DriverTripStatus,
+    TripStatusUpdate,
+)
+
+# Allowed lifecycle transitions for a driver-managed trip.
+_ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    DriverTripStatus.assigned.value: {
+        DriverTripStatus.en_route.value,
+        DriverTripStatus.cancelled.value,
+    },
+    DriverTripStatus.en_route.value: {
+        DriverTripStatus.in_progress.value,
+        DriverTripStatus.cancelled.value,
+    },
+    DriverTripStatus.in_progress.value: {
+        DriverTripStatus.completed.value,
+        DriverTripStatus.cancelled.value,
+    },
+    DriverTripStatus.completed.value: set(),
+    DriverTripStatus.cancelled.value: set(),
+}
+
+
+class TripService:
+    """Business logic for driver trip lifecycle management."""
+
+    def __init__(self, trip_repository: DriverTripRepository) -> None:
+        self._trips = trip_repository
+
+    def list_trips(
+        self,
+        driver_id: UUID,
+        statuses: tuple[str, ...] | None,
+        page: int,
+        page_size: int,
+    ) -> PaginatedResponse[DriverTripDetail]:
+        offset = (page - 1) * page_size
+        rows = self._trips.list_trips(driver_id, statuses, page_size, offset)
+        total = self._trips.count_trips(driver_id, statuses)
+        return PaginatedResponse(
+            items=[self._to_detail(trip, booking) for trip, booking in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
+
+    def get_trip_detail(self, driver_id: UUID, trip_id: UUID) -> DriverTripDetail:
+        result = self._trips.get_trip_with_booking(driver_id, trip_id)
+        if result is None:
+            raise self._not_found()
+        trip, booking = result
+        return self._to_detail(trip, booking)
+
+    def update_status(
+        self,
+        driver_id: UUID,
+        trip_id: UUID,
+        payload: TripStatusUpdate,
+    ) -> DriverTripDetail:
+        result = self._trips.get_trip_with_booking(driver_id, trip_id)
+        if result is None:
+            raise self._not_found()
+        trip, booking = result
+
+        target = payload.status.value
+        self._assert_transition_allowed(trip.status, target)
+
+        trip.status = target
+        if target == DriverTripStatus.completed.value:
+            trip.completed_at = datetime.now(timezone.utc)
+            if trip.total_fare is None and booking is not None:
+                trip.total_fare = booking.estimated_fare
+
+        saved = self._trips.save(trip)
+        return self._to_detail(saved, booking)
+
+    def _assert_transition_allowed(self, current: str, target: str) -> None:
+        allowed = _ALLOWED_TRANSITIONS.get(current)
+        if allowed is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unknown trip status '{current}'",
+            )
+        if target not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot transition trip from '{current}' to '{target}'",
+            )
+
+    @staticmethod
+    def _to_detail(trip: TripHistory, booking: Booking | None) -> DriverTripDetail:
+        detail = DriverTripDetail.model_validate(trip)
+        if booking is not None:
+            detail.pickup_label = booking.pickup_label
+            detail.dropoff_label = booking.dropoff_label
+            detail.requested_at = booking.requested_at
+            detail.estimated_fare = booking.estimated_fare
+        return detail
+
+    @staticmethod
+    def _not_found() -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found",
+        )

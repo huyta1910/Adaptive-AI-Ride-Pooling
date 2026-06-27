@@ -23,3 +23,10 @@ class DriverRepository(BaseRepository[Driver]):
         self.session.commit()
         self.session.refresh(driver)
         return driver
+
+    def update_vehicle(self, driver: Driver, vehicle_label: str) -> Driver:
+        driver.vehicle_label = vehicle_label
+        self.session.add(driver)
+        self.session.commit()
+        self.session.refresh(driver)
+        return driver

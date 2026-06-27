@@ -2,7 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { ActiveTripCard } from "@/components/driver/ActiveTripCard";
 import { AvailabilityToggle } from "@/components/driver/AvailabilityToggle";
-import { DriverDashboardError } from "@/components/driver/DriverDashboardError";
+import { DriverErrorState } from "@/components/driver/DriverErrorState";
 import { DriverDashboardSkeleton } from "@/components/driver/DriverDashboardSkeleton";
 import { DriverStatsCards } from "@/components/driver/DriverStatsCards";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -46,14 +46,16 @@ export function DriverDashboardPage() {
         {dashboardQuery.isPending && driverId ? <DriverDashboardSkeleton /> : null}
 
         {!driverId ? (
-          <DriverDashboardError
+          <DriverErrorState
+            title="Unable to load dashboard"
             message="No signed-in driver found."
             onRetry={() => dashboardQuery.refetch()}
           />
         ) : null}
 
         {dashboardQuery.isError ? (
-          <DriverDashboardError
+          <DriverErrorState
+            title="Unable to load dashboard"
             message={dashboardQuery.error instanceof Error ? dashboardQuery.error.message : undefined}
             onRetry={() => dashboardQuery.refetch()}
           />

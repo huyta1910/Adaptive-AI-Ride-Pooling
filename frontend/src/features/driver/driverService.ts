@@ -1,6 +1,7 @@
 import { apiClient } from "@/services/api/client";
 import type { ApiResponse } from "@/types/api";
 import { DRIVER_API } from "@/features/driver/constants";
+import { toNumber } from "@/features/driver/mappers";
 import type {
   Driver,
   DriverAvailabilityStatus,
@@ -19,7 +20,7 @@ interface RawDriver {
   availability_status: DriverAvailabilityStatus;
 }
 
-interface RawDriverTrip {
+export interface RawDriverTrip {
   id: string;
   booking_id: string;
   driver_id: string | null;
@@ -40,13 +41,6 @@ interface RawDriverDashboard {
   active_trip: RawDriverTrip | null;
 }
 
-function toNumber(value: string | number | null): number {
-  if (value === null) {
-    return 0;
-  }
-  return typeof value === "number" ? value : Number(value);
-}
-
 function mapDriver(raw: RawDriver): Driver {
   return {
     id: raw.id,
@@ -57,7 +51,7 @@ function mapDriver(raw: RawDriver): Driver {
   };
 }
 
-function mapTrip(raw: RawDriverTrip): DriverTrip {
+export function mapTrip(raw: RawDriverTrip): DriverTrip {
   return {
     id: raw.id,
     bookingId: raw.booking_id,
