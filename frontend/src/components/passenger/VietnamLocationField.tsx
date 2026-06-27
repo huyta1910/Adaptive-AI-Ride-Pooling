@@ -4,6 +4,7 @@ import { Check, LocateFixed, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  useGeocodeVietnamAddress,
   useNormalizeVietnamLocation,
   useReverseGeocodeDeviceLocation,
   useVietnamProvinceOptions,
@@ -21,6 +22,7 @@ interface VietnamLocationFieldProps {
   icon: ReactNode;
   value: string;
   onChange: (value: string) => void;
+  onCoordinatesChange?: (coordinates: DeviceCoordinates | null) => void;
   disabled?: boolean;
   error?: string;
   placeholder?: string;
@@ -77,6 +79,7 @@ export function VietnamLocationField({
   icon,
   value,
   onChange,
+  onCoordinatesChange,
   disabled = false,
   error,
   placeholder,
@@ -92,6 +95,7 @@ export function VietnamLocationField({
     "idle",
   );
   const normalizeLocation = useNormalizeVietnamLocation();
+  const geocodeAddress = useGeocodeVietnamAddress();
   const reverseGeocode = useReverseGeocodeDeviceLocation();
   const provinces = useVietnamProvinceOptions();
   const wards = useVietnamWardOptions(addressParts.provinceCode);
@@ -141,6 +145,7 @@ export function VietnamLocationField({
   const updateAddressPart = (key: keyof AddressParts, nextValue: string) => {
     const nextParts = { ...addressParts, [key]: nextValue };
     setAddressParts(nextParts);
+    onCoordinatesChange?.(null);
     onChange(composeAddress(nextParts));
   };
 
@@ -155,6 +160,7 @@ export function VietnamLocationField({
       provinceCode,
     };
     setAddressParts(nextParts);
+    onCoordinatesChange?.(null);
     onChange(composeAddress(nextParts));
   };
 
@@ -165,11 +171,21 @@ export function VietnamLocationField({
       ward: ward?.name ?? "",
     };
     setAddressParts(nextParts);
+    onCoordinatesChange?.(null);
     onChange(composeAddress(nextParts));
   };
 
   const handleNormalize = () => {
-    normalizeLocation.mutate(composedAddress || value);
+    const address = composedAddress || value;
+    geocodeAddress.mutate(address, {
+      onSuccess: (coordinates) => {
+        onCoordinatesChange?.(coordinates);
+      },
+      onError: () => {
+        onCoordinatesChange?.(null);
+      },
+    });
+    normalizeLocation.mutate(address);
   };
 
   const handleSelect = (location: VietnamAdministrativeLocation) => {
@@ -181,6 +197,7 @@ export function VietnamLocationField({
       provinceCode:
         provinces.data?.find((province) => province.name === location.province)?.code ?? null,
     }));
+    onCoordinatesChange?.(null);
     onChange(formattedLocation);
   };
 
@@ -195,6 +212,10 @@ export function VietnamLocationField({
       provinceCode: matchedProvince?.code ?? null,
     };
     setAddressParts(nextParts);
+    onCoordinatesChange?.({
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    });
     onChange(composeAddress(nextParts) || suggestion.label);
     normalizeLocation.mutate(suggestion.label);
   };
@@ -229,7 +250,7 @@ export function VietnamLocationField({
     );
   };
 
-  const isBusy = normalizeLocation.isPending || reverseGeocode.isPending;
+  const isBusy = normalizeLocation.isPending || geocodeAddress.isPending || reverseGeocode.isPending;
 
   return (
     <div className="grid gap-3">
@@ -309,9 +330,9 @@ export function VietnamLocationField({
           type="button"
           variant="outline"
           onClick={handleNormalize}
-          disabled={disabled || normalizeLocation.isPending || (composedAddress || value).length < 2}
+          disabled={disabled || isBusy || (composedAddress || value).length < 2}
         >
-          {normalizeLocation.isPending ? (
+          {normalizeLocation.isPending || geocodeAddress.isPending ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <Search className="h-4 w-4" aria-hidden="true" />
@@ -330,6 +351,15 @@ export function VietnamLocationField({
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {normalizeLocation.isError ? (
         <p className="text-sm text-destructive">Location normalization service is unavailable.</p>
+      ) : null}
+      {geocodeAddress.isError ? (
+        <p className="text-sm text-destructive">Map coordinates could not be found.</p>
+      ) : null}
+      {geocodeAddress.data ? (
+        <p className="text-xs text-muted-foreground">
+          Coordinates set from map: {geocodeAddress.data.latitude.toFixed(6)},{" "}
+          {geocodeAddress.data.longitude.toFixed(6)}
+        </p>
       ) : null}
       {normalizeLocation.data ? (
         <div className="grid gap-2 rounded-md border bg-muted/30 p-3">

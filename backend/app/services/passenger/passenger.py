@@ -40,7 +40,7 @@ class PassengerService:
         return PassengerProfileRead.model_validate(passenger)
 
     def request_ride(self, passenger_id: UUID, payload: RideRequestCreate) -> RideRequestRead:
-        self._get_passenger(passenger_id)
+        passenger = self._get_passenger(passenger_id)
         active_ride = self.repository.get_current_ride(passenger_id)
         if active_ride is not None:
             raise HTTPException(
@@ -50,8 +50,13 @@ class PassengerService:
 
         booking = self.repository.create_ride_request(
             passenger_id=passenger_id,
+            user_id=passenger.user_id,
             pickup_label=payload.pickup_label,
             dropoff_label=payload.dropoff_label,
+            pickup_latitude=payload.pickup_latitude,
+            pickup_longitude=payload.pickup_longitude,
+            dropoff_latitude=payload.dropoff_latitude,
+            dropoff_longitude=payload.dropoff_longitude,
         )
         return RideRequestRead.model_validate(booking)
 
@@ -72,7 +77,7 @@ class PassengerService:
                 detail="Passenger does not have an active ride request.",
             )
 
-        if current_ride.status not in {"requested", "matching"}:
+        if current_ride.status not in {"requested", "matching", "assigned"}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This ride can no longer be cancelled by the passenger.",
@@ -89,6 +94,10 @@ class PassengerService:
                 booking_id=booking.id,
                 pickup_label=booking.pickup_label,
                 dropoff_label=booking.dropoff_label,
+                pickup_latitude=booking.pickup_latitude,
+                pickup_longitude=booking.pickup_longitude,
+                dropoff_latitude=booking.dropoff_latitude,
+                dropoff_longitude=booking.dropoff_longitude,
                 status=trip.status,
                 requested_at=booking.requested_at,
                 completed_at=trip.completed_at,

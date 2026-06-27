@@ -447,6 +447,34 @@ export async function reverseGeocodeDeviceLocation(
   };
 }
 
+export async function geocodeVietnamAddress(address: string): Promise<DeviceCoordinates | null> {
+  const query = address.trim();
+  if (query.length < 3) {
+    return null;
+  }
+
+  const response = await mapSearchClient.get<NominatimSearchItem[]>("/search", {
+    params: {
+      q: query,
+      format: "jsonv2",
+      countrycodes: "vn",
+      limit: 1,
+    },
+  });
+  const match = response.data[0];
+  if (!match) {
+    return null;
+  }
+
+  const latitude = Number(match.lat);
+  const longitude = Number(match.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
 export const passengerApi = {
   getDashboard(passengerId: string) {
     return unwrap<PassengerDashboard>(apiClient.get(`/passengers/${passengerId}/dashboard`));
@@ -480,6 +508,7 @@ export const passengerApi = {
   normalizeVietnamLocation,
   searchVietnamLocationSuggestions,
   reverseGeocodeDeviceLocation,
+  geocodeVietnamAddress,
   getVietnamProvinceOptions,
   getVietnamWardOptions,
 };

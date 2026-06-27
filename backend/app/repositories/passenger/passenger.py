@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.models.booking import Booking
 from app.models.notification import Notification
 from app.models.passenger import Passenger
+from app.models.ride_pool_group import RidePoolGroup
+from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
 from app.repositories.base import BaseRepository
 
@@ -28,18 +31,59 @@ class PassengerRepository(BaseRepository[Passenger]):
     def create_ride_request(
         self,
         passenger_id: UUID,
+        user_id: UUID,
         pickup_label: str,
         dropoff_label: str,
+        pickup_latitude: Decimal | None,
+        pickup_longitude: Decimal | None,
+        dropoff_latitude: Decimal | None,
+        dropoff_longitude: Decimal | None,
     ) -> Booking:
         booking = Booking(
             passenger_id=passenger_id,
             pickup_label=pickup_label,
             dropoff_label=dropoff_label,
-            status="requested",
+            pickup_latitude=pickup_latitude,
+            pickup_longitude=pickup_longitude,
+            dropoff_latitude=dropoff_latitude,
+            dropoff_longitude=dropoff_longitude,
+            status="matching",
             requested_at=datetime.now(UTC),
             estimated_fare=None,
         )
         self.session.add(booking)
+        self.session.flush()
+
+        # Mock-AI matching glue: every new request enters the pool queue as a
+        # pending group so drivers can see and accept it. The real AI matcher
+        # will replace this by grouping compatible bookings into shared pools.
+        group = RidePoolGroup(
+            status="pending",
+            origin_area=pickup_label,
+            destination_area=dropoff_label,
+        )
+        self.session.add(group)
+        self.session.flush()
+        self.session.add(
+            RidePoolMember(
+                ride_pool_group_id=group.id,
+                booking_id=booking.id,
+                status="pending",
+            )
+        )
+
+        self.session.add(
+            Notification(
+                user_id=user_id,
+                title="Looking for a pool",
+                body=(
+                    f"We are matching your ride from {pickup_label} to "
+                    f"{dropoff_label} with nearby drivers."
+                ),
+                status="unread",
+            )
+        )
+
         self.session.commit()
         self.session.refresh(booking)
         return booking
@@ -57,6 +101,31 @@ class PassengerRepository(BaseRepository[Passenger]):
     def cancel_ride_request(self, booking: Booking) -> Booking:
         booking.status = "cancelled"
         self.session.add(booking)
+
+        member_statement = select(RidePoolMember).where(RidePoolMember.booking_id == booking.id)
+        members = list(self.session.scalars(member_statement).all())
+        for member in members:
+            member.status = "cancelled"
+            self.session.add(member)
+
+        group_ids = {member.ride_pool_group_id for member in members}
+        for group_id in group_ids:
+            remaining_statement = (
+                select(func.count())
+                .select_from(RidePoolMember)
+                .join(Booking, Booking.id == RidePoolMember.booking_id)
+                .where(
+                    RidePoolMember.ride_pool_group_id == group_id,
+                    Booking.status.in_(("requested", "matching", "assigned", "in_progress")),
+                )
+            )
+            remaining_active_members = int(self.session.scalar(remaining_statement) or 0)
+            if remaining_active_members == 0:
+                group = self.session.get(RidePoolGroup, group_id)
+                if group is not None and group.status in {"pending", "active"}:
+                    group.status = "cancelled"
+                    self.session.add(group)
+
         self.session.commit()
         self.session.refresh(booking)
         return booking

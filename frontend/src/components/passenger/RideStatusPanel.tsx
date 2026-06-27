@@ -70,7 +70,7 @@ export function RideStatusPanel({ passengerId }: RideStatusPanelProps) {
                 <span>{nextStep}</span>
               </div>
             </div>
-            {["requested", "matching"].includes(currentRide.status) ? (
+            {["requested", "matching", "assigned"].includes(currentRide.status) ? (
               <div className="grid gap-2">
                 {cancelRide.isError ? (
                   <p className="text-sm text-destructive">Ride could not be cancelled.</p>
