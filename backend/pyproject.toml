@@ -1,0 +1,50 @@
+[project]
+name = "adaptive-ai-ride-pooling-backend"
+version = "0.1.0"
+description = "FastAPI foundation for Adaptive AI Ride Pooling"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14.0",
+  "fastapi>=0.115.6",
+  "psycopg[binary]>=3.2.3",
+  "pydantic>=2.10.4",
+  "pydantic-settings>=2.7.0",
+  "sqlalchemy>=2.0.36",
+  "uvicorn[standard]>=0.34.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.10.0",
+  "isort>=5.13.2",
+  "mypy>=1.14.0",
+  "pytest>=8.3.4",
+  "ruff>=0.8.4"
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_any_generics = false
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"

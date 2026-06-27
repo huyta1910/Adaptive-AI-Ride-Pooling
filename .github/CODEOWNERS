@@ -1,0 +1,8 @@
+* @adaptive-ride-pooling/core
+
+/frontend/src/layouts/ @adaptive-ride-pooling/core
+/frontend/src/components/ @adaptive-ride-pooling/core
+/frontend/src/routes/ @adaptive-ride-pooling/core
+/frontend/src/app/ @adaptive-ride-pooling/core
+/backend/app/core/ @adaptive-ride-pooling/core
+/backend/app/config/ @adaptive-ride-pooling/core
