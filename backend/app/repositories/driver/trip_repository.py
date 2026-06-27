@@ -140,10 +140,7 @@ class DriverTripRepository:
         group_statement = (
             select(RidePoolGroup)
             .join(RidePoolMember, RidePoolMember.ride_pool_group_id == RidePoolGroup.id)
-            .where(
-                RidePoolMember.booking_id == booking_id,
-                RidePoolGroup.driver_id == driver_id,
-            )
+            .where(RidePoolMember.booking_id == booking_id)
         )
         group = self.session.scalars(group_statement).first()
         if group is None:
@@ -155,7 +152,7 @@ class DriverTripRepository:
             .join(TripHistory, TripHistory.booking_id == Booking.id)
             .where(
                 RidePoolMember.ride_pool_group_id == group.id,
-                TripHistory.driver_id == driver_id,
+                (TripHistory.driver_id == driver_id) | (TripHistory.driver_id.is_(None)),
             )
         )
         for member, booking, trip in self.session.execute(member_statement).all():

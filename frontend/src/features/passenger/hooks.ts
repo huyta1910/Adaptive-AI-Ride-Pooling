@@ -31,6 +31,7 @@ export function usePassengerDashboard(passengerId: string) {
     queryKey: passengerKeys.dashboard(passengerId),
     queryFn: () => passengerApi.getDashboard(passengerId),
     enabled: passengerId.length > 0,
+    refetchInterval: 5_000,
   });
 }
 
@@ -47,7 +48,7 @@ export function useRideStatus(passengerId: string) {
     queryKey: passengerKeys.rideStatus(passengerId),
     queryFn: () => passengerApi.getRideStatus(passengerId),
     enabled: passengerId.length > 0,
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
   });
 }
 

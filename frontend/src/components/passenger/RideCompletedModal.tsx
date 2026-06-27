@@ -14,6 +14,8 @@ export function RideCompletedModal({ passengerId }: RideCompletedModalProps) {
   const rideStatus = useRideStatus(passengerId);
   const rideHistory = useRideHistory(passengerId);
   const dashboard = usePassengerDashboard(passengerId);
+  const refetchRideHistory = rideHistory.refetch;
+  const refetchDashboard = dashboard.refetch;
   const previousRideIdRef = useRef<string | null>(null);
   const shownCompletedBookingRef = useRef<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -27,17 +29,28 @@ export function RideCompletedModal({ passengerId }: RideCompletedModalProps) {
     }
 
     const previousRideId = previousRideIdRef.current;
-    const latestCompletedRide = rideHistory.data?.find((ride) => ride.status === "completed");
+    if (previousRideId) {
+      void refetchRideHistory();
+      void refetchDashboard();
+    }
+  }, [refetchDashboard, refetchRideHistory, rideStatus.data]);
+
+  useEffect(() => {
+    const previousRideId = previousRideIdRef.current;
+    const latestCompletedRide = rideHistory.data?.find(
+      (ride) => ride.booking_id === previousRideId && ride.status === "completed",
+    );
+
     if (
       previousRideId &&
       latestCompletedRide &&
-      latestCompletedRide.booking_id === previousRideId &&
       shownCompletedBookingRef.current !== latestCompletedRide.booking_id
     ) {
       shownCompletedBookingRef.current = latestCompletedRide.booking_id;
+      previousRideIdRef.current = null;
       setIsOpen(true);
     }
-  }, [rideHistory.data, rideStatus.data]);
+  }, [rideHistory.data]);
 
   const handleClose = async () => {
     setIsOpen(false);
