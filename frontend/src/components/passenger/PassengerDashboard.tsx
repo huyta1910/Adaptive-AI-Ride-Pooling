@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NotificationsPanel } from "@/components/passenger/NotificationsPanel";
 import { PassengerProfilePanel } from "@/components/passenger/PassengerProfilePanel";
+import { RideCompletedModal } from "@/components/passenger/RideCompletedModal";
 import { RideHistoryList } from "@/components/passenger/RideHistoryList";
 import { RideRequestForm } from "@/components/passenger/RideRequestForm";
 import { RideStatusPanel } from "@/components/passenger/RideStatusPanel";
@@ -18,6 +19,7 @@ export function PassengerDashboard({ passengerId }: PassengerDashboardProps) {
 
   return (
     <div className="grid gap-6">
+      <RideCompletedModal passengerId={passengerId} />
       <section className="grid gap-4 md:grid-cols-3">
         {dashboard.isLoading ? (
           <>
