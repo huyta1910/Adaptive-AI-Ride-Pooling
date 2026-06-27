@@ -9,6 +9,8 @@ import type { GeoPoint, PoolStop, PoolSuggestion } from "@/features/driver/types
 
 interface PoolNavigationProps {
   suggestion: PoolSuggestion;
+  isCompleting: boolean;
+  completionError?: string;
   onComplete: () => void;
 }
 
@@ -18,7 +20,12 @@ function stopActionLabel(stop: PoolStop): string {
     : `Đã đến · Trả khách ${stop.passengerOrder}`;
 }
 
-export function PoolNavigation({ suggestion, onComplete }: PoolNavigationProps) {
+export function PoolNavigation({
+  suggestion,
+  isCompleting,
+  completionError,
+  onComplete,
+}: PoolNavigationProps) {
   const stops = suggestion.stops;
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -135,7 +142,12 @@ export function PoolNavigation({ suggestion, onComplete }: PoolNavigationProps) 
               <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                 Đã hoàn thành tất cả điểm đón/trả của chuyến ghép.
               </p>
-              <Button onClick={onComplete}>Hoàn thành chuyến ghép</Button>
+              {completionError ? (
+                <p className="text-sm text-destructive">{completionError}</p>
+              ) : null}
+              <Button onClick={onComplete} disabled={isCompleting}>
+                {isCompleting ? "Đang hoàn thành..." : "Hoàn thành chuyến ghép"}
+              </Button>
             </div>
           ) : (
             <Button onClick={advance}>

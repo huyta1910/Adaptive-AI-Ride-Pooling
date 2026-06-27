@@ -6,6 +6,7 @@ import { DriverErrorState } from "@/components/driver/DriverErrorState";
 import { PoolNavigation } from "@/components/driver/pool/PoolNavigation";
 import { TripListSkeleton } from "@/components/driver/trip/TripListSkeleton";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useCompletePool } from "@/features/driver/hooks/useCompletePool";
 import { usePoolSuggestion } from "@/features/driver/hooks/usePoolSuggestion";
 
 export function DriverPoolNavigatePage() {
@@ -16,6 +17,7 @@ export function DriverPoolNavigatePage() {
   const driverId = searchParams.get("driverId") ?? session?.user.id;
 
   const { data, isPending, isError, error, refetch } = usePoolSuggestion(driverId, groupId);
+  const completePool = useCompletePool(driverId ?? "");
 
   const backToPool = () => {
     const suffix = searchParams.get("driverId")
@@ -66,7 +68,26 @@ export function DriverPoolNavigatePage() {
             onRetry={() => refetch()}
           />
         ) : (
-          <PoolNavigation suggestion={data} onComplete={backToPool} />
+          <PoolNavigation
+            suggestion={data}
+            isCompleting={completePool.isPending}
+            completionError={
+              completePool.isError
+                ? completePool.error instanceof Error
+                  ? completePool.error.message
+                  : "Không thể hoàn thành chuyến ghép."
+                : undefined
+            }
+            onComplete={() => {
+              if (!driverId || !groupId) return;
+              completePool.mutate(
+                { groupId },
+                {
+                  onSuccess: backToPool,
+                },
+              );
+            }}
+          />
         )}
       </div>
     </PageTransition>

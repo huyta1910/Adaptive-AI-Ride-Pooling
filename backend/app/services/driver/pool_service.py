@@ -61,6 +61,28 @@ class PoolService:
         self._pools.confirm_assignment(group, driver, members_with_bookings)
         return self._to_suggestion(group)
 
+    def complete(self, driver_id: UUID, group_id: UUID) -> PoolSuggestion:
+        group = self._pools.get(group_id)
+        if group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pool suggestion not found",
+            )
+        if group.status == "completed":
+            return self._to_suggestion(group)
+        if group.status != "active":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot complete pool with status '{group.status}'",
+            )
+        if group.driver_id is not None and group.driver_id != driver_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This pool is assigned to another driver.",
+            )
+
+        return self._to_suggestion(self._pools.complete_pool(group, driver_id))
+
     def _to_suggestion(self, group) -> PoolSuggestion:
         members_with_bookings = self._pools.get_members_with_bookings(group.id)
         passengers: list[PoolPassenger] = []

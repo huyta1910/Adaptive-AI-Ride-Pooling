@@ -43,3 +43,16 @@ async def respond_to_pool(
 ) -> ApiResponse[PoolSuggestion]:
     data = service.respond(driver_id, group_id, payload)
     return ApiResponse(data=data, message=f"Pool {payload.action}ed")
+
+
+@router.patch(
+    "/{driver_id}/pool-suggestions/{group_id}/complete",
+    response_model=ApiResponse[PoolSuggestion],
+)
+async def complete_pool(
+    driver_id: UUID,
+    group_id: UUID,
+    service: PoolServiceDep,
+) -> ApiResponse[PoolSuggestion]:
+    data = service.complete(driver_id, group_id)
+    return ApiResponse(data=data, message="Pool completed")

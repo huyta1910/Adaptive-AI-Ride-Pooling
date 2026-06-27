@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -100,6 +101,47 @@ class PoolRepository:
                 status="unread",
             )
         )
+
+        self.session.commit()
+        self.session.refresh(group)
+        return group
+
+    def complete_pool(self, group: RidePoolGroup, driver_id: UUID) -> RidePoolGroup:
+        completed_at = datetime.now(UTC)
+        group.status = "completed"
+        self.session.add(group)
+
+        members_with_bookings = self.get_members_with_bookings(group.id)
+        for member, booking in members_with_bookings:
+            member.status = "completed"
+            self.session.add(member)
+            if booking is None:
+                continue
+
+            booking.status = "completed"
+            self.session.add(booking)
+
+            trip_statement = select(TripHistory).where(
+                TripHistory.booking_id == booking.id,
+                (TripHistory.driver_id == driver_id) | (TripHistory.driver_id.is_(None)),
+            )
+            for trip in self.session.scalars(trip_statement).all():
+                trip.status = "completed"
+                trip.completed_at = trip.completed_at or completed_at
+                if trip.total_fare is None:
+                    trip.total_fare = booking.estimated_fare
+                self.session.add(trip)
+
+            passenger = self.session.get(Passenger, booking.passenger_id)
+            if passenger is not None:
+                self.session.add(
+                    Notification(
+                        user_id=passenger.user_id,
+                        title="Ride completed",
+                        body="Your pooled ride has been completed. You can book a new ride now.",
+                        status="unread",
+                    )
+                )
 
         self.session.commit()
         self.session.refresh(group)
