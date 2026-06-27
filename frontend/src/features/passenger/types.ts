@@ -85,3 +85,18 @@ export interface LocationNormalizationResult {
   reasoning: string;
   alternatives: VietnamAdministrativeLocation[];
 }
+
+export interface DeviceCoordinates {
+  latitude: number;
+  longitude: number;
+}
+
+export interface PassengerLocationSuggestion {
+  id: string;
+  label: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  distance_meters: number | null;
+}

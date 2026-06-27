@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { passengerApi } from "@/features/passenger/api";
-import type { PassengerProfilePayload, RideRequestPayload } from "@/features/passenger/types";
+import type {
+  DeviceCoordinates,
+  PassengerProfilePayload,
+  RideRequestPayload,
+} from "@/features/passenger/types";
 
 const passengerKeys = {
   all: (passengerId: string) => ["passenger", passengerId] as const,
@@ -9,6 +13,14 @@ const passengerKeys = {
   rideStatus: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-status"] as const,
   rideHistory: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-history"] as const,
   notifications: (passengerId: string) => [...passengerKeys.all(passengerId), "notifications"] as const,
+  locationSuggestions: (query: string, coordinates?: DeviceCoordinates | null) =>
+    [
+      "passenger",
+      "location-suggestions",
+      query,
+      coordinates?.latitude ?? null,
+      coordinates?.longitude ?? null,
+    ] as const,
 };
 
 export function usePassengerDashboard(passengerId: string) {
@@ -98,5 +110,19 @@ export function useMarkPassengerNotificationRead(passengerId: string) {
 export function useNormalizeVietnamLocation() {
   return useMutation({
     mutationFn: (input: string) => passengerApi.normalizeVietnamLocation(input),
+  });
+}
+
+export function useVietnamLocationSuggestions(
+  query: string,
+  coordinates?: DeviceCoordinates | null,
+) {
+  const trimmedQuery = query.trim();
+
+  return useQuery({
+    queryKey: passengerKeys.locationSuggestions(trimmedQuery, coordinates),
+    queryFn: () => passengerApi.searchVietnamLocationSuggestions(trimmedQuery, coordinates),
+    enabled: trimmedQuery.length >= 2,
+    staleTime: 60_000,
   });
 }

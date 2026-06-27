@@ -2,8 +2,10 @@ import axios from "axios";
 import { apiClient } from "@/services/api/client";
 import type {
   ApiResponse,
+  DeviceCoordinates,
   LocationNormalizationResult,
   PassengerDashboard,
+  PassengerLocationSuggestion,
   PassengerNotification,
   PassengerProfile,
   PassengerProfilePayload,
@@ -30,8 +32,21 @@ interface VietnamLegacyWardApiItem {
   ward: VietnamWardApiItem;
 }
 
+interface NominatimSearchItem {
+  place_id: number;
+  display_name: string;
+  name?: string;
+  lat: string;
+  lon: string;
+}
+
 const vietnamAdminClient = axios.create({
   baseURL: "https://provinces.open-api.vn/api/v2",
+  timeout: 10_000,
+});
+
+const mapSearchClient = axios.create({
+  baseURL: "https://nominatim.openstreetmap.org",
   timeout: 10_000,
 });
 
@@ -74,7 +89,22 @@ async function getVietnamProvinces(): Promise<VietnamProvinceApiItem[]> {
 }
 
 function provinceNameFor(provinces: VietnamProvinceApiItem[], provinceCode: number): string {
-  return provinces.find((province) => province.code === provinceCode)?.name ?? "Không rõ tỉnh/thành";
+  return provinces.find((province) => province.code === provinceCode)?.name ?? "Unknown province/city";
+}
+
+function distanceInMeters(start: DeviceCoordinates, end: DeviceCoordinates): number {
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(end.latitude - start.latitude);
+  const longitudeDelta = toRadians(end.longitude - start.longitude);
+  const startLatitude = toRadians(start.latitude);
+  const endLatitude = toRadians(end.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+  return Math.round(
+    earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)),
+  );
 }
 
 function scoreWard(
@@ -222,6 +252,62 @@ export async function normalizeVietnamLocation(input: string): Promise<LocationN
   };
 }
 
+export async function searchVietnamLocationSuggestions(
+  input: string,
+  coordinates?: DeviceCoordinates | null,
+): Promise<PassengerLocationSuggestion[]> {
+  const query = input.trim();
+  if (query.length < 2) {
+    return [];
+  }
+
+  const params: Record<string, string | number> = {
+    q: query,
+    format: "jsonv2",
+    countrycodes: "vn",
+    addressdetails: 1,
+    limit: 8,
+  };
+
+  if (coordinates) {
+    const latitudeSpan = 0.3;
+    const longitudeSpan = 0.3;
+    params.viewbox = [
+      coordinates.longitude - longitudeSpan,
+      coordinates.latitude + latitudeSpan,
+      coordinates.longitude + longitudeSpan,
+      coordinates.latitude - latitudeSpan,
+    ].join(",");
+    params.bounded = 0;
+  }
+
+  const response = await mapSearchClient.get<NominatimSearchItem[]>("/search", { params });
+
+  return response.data
+    .map((item) => {
+      const latitude = Number(item.lat);
+      const longitude = Number(item.lon);
+      return {
+        id: String(item.place_id),
+        label: item.display_name,
+        name: item.name || item.display_name.split(",")[0]?.trim() || item.display_name,
+        address: item.display_name,
+        latitude,
+        longitude,
+        distance_meters: coordinates
+          ? distanceInMeters(coordinates, { latitude, longitude })
+          : null,
+      };
+    })
+    .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+    .sort((left, right) => {
+      if (left.distance_meters === null || right.distance_meters === null) {
+        return left.name.localeCompare(right.name);
+      }
+      return left.distance_meters - right.distance_meters;
+    });
+}
+
 export const passengerApi = {
   getDashboard(passengerId: string) {
     return unwrap<PassengerDashboard>(apiClient.get(`/passengers/${passengerId}/dashboard`));
@@ -250,4 +336,5 @@ export const passengerApi = {
     );
   },
   normalizeVietnamLocation,
+  searchVietnamLocationSuggestions,
 };
