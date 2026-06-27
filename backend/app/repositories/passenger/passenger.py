@@ -98,6 +98,38 @@ class PassengerRepository(BaseRepository[Passenger]):
         )
         return self.session.scalars(statement).first()
 
+    def cancel_ride_request(self, booking: Booking) -> Booking:
+        booking.status = "cancelled"
+        self.session.add(booking)
+
+        member_statement = select(RidePoolMember).where(RidePoolMember.booking_id == booking.id)
+        members = list(self.session.scalars(member_statement).all())
+        for member in members:
+            member.status = "cancelled"
+            self.session.add(member)
+
+        group_ids = {member.ride_pool_group_id for member in members}
+        for group_id in group_ids:
+            remaining_statement = (
+                select(func.count())
+                .select_from(RidePoolMember)
+                .join(Booking, Booking.id == RidePoolMember.booking_id)
+                .where(
+                    RidePoolMember.ride_pool_group_id == group_id,
+                    Booking.status.in_(("requested", "matching", "assigned", "in_progress")),
+                )
+            )
+            remaining_active_members = int(self.session.scalar(remaining_statement) or 0)
+            if remaining_active_members == 0:
+                group = self.session.get(RidePoolGroup, group_id)
+                if group is not None and group.status in {"pending", "active"}:
+                    group.status = "cancelled"
+                    self.session.add(group)
+
+        self.session.commit()
+        self.session.refresh(booking)
+        return booking
+
     def list_ride_history(self, passenger_id: UUID, limit: int = 10) -> list[tuple[TripHistory, Booking]]:
         statement: Select[tuple[TripHistory, Booking]] = (
             select(TripHistory, Booking)
