@@ -7,6 +7,8 @@ from sqlalchemy import Date as DateType
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
+from app.models.notification import Notification
+from app.models.passenger import Passenger
 from app.models.ride_pool_group import RidePoolGroup
 from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
@@ -170,6 +172,15 @@ class DriverTripRepository:
 
         group.status = group_status
         self.session.add(group)
+
+    def notify_passenger(self, booking: Booking, title: str, body: str) -> None:
+        """Queue a notification for the booking's passenger (committed by save)."""
+        passenger = self.session.get(Passenger, booking.passenger_id)
+        if passenger is None:
+            return
+        self.session.add(
+            Notification(user_id=passenger.user_id, title=title, body=body, status="unread")
+        )
 
     # --- Earnings ---
 

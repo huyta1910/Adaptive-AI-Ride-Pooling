@@ -17,13 +17,18 @@ export function DriverPoolNavigatePage() {
   const driverId = searchParams.get("driverId") ?? session?.user.id;
 
   const { data, isPending, isError, error, refetch } = usePoolSuggestion(driverId, groupId);
-  const completePool = useCompletePool(driverId ?? "");
+  const completeMutation = useCompletePool(driverId ?? "");
 
   const backToPool = () => {
     const suffix = searchParams.get("driverId")
       ? `?driverId=${searchParams.get("driverId")}`
       : "";
     navigate(`/dashboard/driver/pool${suffix}`);
+  };
+
+  const handleComplete = () => {
+    if (!groupId) return;
+    completeMutation.mutate(groupId, { onSuccess: backToPool });
   };
 
   return (
@@ -36,12 +41,12 @@ export function DriverPoolNavigatePage() {
           </Button>
           <div>
             <h1 className="text-2xl font-semibold tracking-normal md:text-3xl">
-              Định tuyến chuyến ghép
+              Dinh tuyen chuyen ghep
             </h1>
             {data ? (
               <p className="mt-1 text-sm text-muted-foreground">
-                {data.originArea ?? "—"} → {data.destinationArea ?? "—"} ·{" "}
-                {data.passengers.length} hành khách
+                {data.originArea ?? "-"} to {data.destinationArea ?? "-"} -{" "}
+                {data.passengers.length} hanh khach
               </p>
             ) : null}
           </div>
@@ -49,44 +54,36 @@ export function DriverPoolNavigatePage() {
 
         {!driverId || !groupId ? (
           <DriverErrorState
-            title="Không tải được chuyến ghép"
-            message="Thiếu thông tin tài xế hoặc chuyến ghép."
+            title="Khong tai duoc chuyen ghep"
+            message="Thieu thong tin tai xe hoac chuyen ghep."
             onRetry={() => refetch()}
           />
         ) : isPending ? (
           <TripListSkeleton />
         ) : isError ? (
           <DriverErrorState
-            title="Không tải được chuyến ghép"
+            title="Khong tai duoc chuyen ghep"
             message={error instanceof Error ? error.message : undefined}
             onRetry={() => refetch()}
           />
         ) : data.stops.length === 0 ? (
           <DriverErrorState
-            title="Chuyến ghép chưa có lộ trình"
-            message="Không có điểm đón/trả nào để định tuyến."
+            title="Chuyen ghep chua co lo trinh"
+            message="Khong co diem don/tra nao de dinh tuyen."
             onRetry={() => refetch()}
           />
         ) : (
           <PoolNavigation
             suggestion={data}
-            isCompleting={completePool.isPending}
+            onComplete={handleComplete}
+            isCompleting={completeMutation.isPending}
             completionError={
-              completePool.isError
-                ? completePool.error instanceof Error
-                  ? completePool.error.message
-                  : "Không thể hoàn thành chuyến ghép."
+              completeMutation.isError
+                ? completeMutation.error instanceof Error
+                  ? completeMutation.error.message
+                  : "Khong the hoan thanh chuyen ghep."
                 : undefined
             }
-            onComplete={() => {
-              if (!driverId || !groupId) return;
-              completePool.mutate(
-                { groupId },
-                {
-                  onSuccess: backToPool,
-                },
-              );
-            }}
           />
         )}
       </div>

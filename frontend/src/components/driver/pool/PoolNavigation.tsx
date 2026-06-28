@@ -9,22 +9,22 @@ import type { GeoPoint, PoolStop, PoolSuggestion } from "@/features/driver/types
 
 interface PoolNavigationProps {
   suggestion: PoolSuggestion;
-  isCompleting: boolean;
+  isCompleting?: boolean;
   completionError?: string;
   onComplete: () => void;
 }
 
 function stopActionLabel(stop: PoolStop): string {
   return stop.type === "pickup"
-    ? `Đã đến · Đón khách ${stop.passengerOrder}`
-    : `Đã đến · Trả khách ${stop.passengerOrder}`;
+    ? `Da den - Don khach ${stop.passengerOrder}`
+    : `Da den - Tra khach ${stop.passengerOrder}`;
 }
 
 export function PoolNavigation({
   suggestion,
-  isCompleting,
   completionError,
   onComplete,
+  isCompleting = false,
 }: PoolNavigationProps) {
   const stops = suggestion.stops;
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -32,49 +32,45 @@ export function PoolNavigation({
   const isDone = currentIndex >= stops.length;
   const currentStop = stops[currentIndex] ?? null;
 
-  // Driver position: start point before first stop, else the last completed stop.
   const driverPos: GeoPoint | null = useMemo(() => {
     if (currentIndex === 0) return suggestion.driverStart ?? stops[0]?.point ?? null;
     return stops[currentIndex - 1]?.point ?? null;
   }, [currentIndex, stops, suggestion.driverStart]);
 
-  // Planned route: concatenate the road geometry of each remaining leg. Each
-  // stop's legRoute is the path from the previous stop to that stop, so joining
-  // them from the current target onward follows the real (AI) routing.
   const remainingRoute: GeoPoint[] = useMemo(() => {
-    const pts: GeoPoint[] = [];
+    const points: GeoPoint[] = [];
     for (let i = currentIndex; i < stops.length; i += 1) {
-      pts.push(...stops[i].legRoute);
+      points.push(...stops[i].legRoute);
     }
-    if (pts.length === 0 && driverPos) {
-      pts.push(driverPos);
+    if (points.length === 0 && driverPos) {
+      points.push(driverPos);
       for (let i = currentIndex; i < stops.length; i += 1) {
-        const p = stops[i].point;
-        if (p) pts.push(p);
+        const point = stops[i].point;
+        if (point) points.push(point);
       }
     }
-    return pts;
+    return points;
   }, [driverPos, currentIndex, stops]);
 
   const markers: MapMarker[] = useMemo(() => {
     const list: MapMarker[] = [];
-    stops.forEach((stop, i) => {
+    stops.forEach((stop, index) => {
       if (!stop.point) return;
-      const kind = i === currentIndex ? "target" : stop.type;
+      const kind = index === currentIndex ? "target" : stop.type;
       list.push({
         position: stop.point,
         kind,
         order: stop.sequence,
-        label: `${stop.type === "pickup" ? "Đón" : "Trả"} ${stop.passengerOrder}: ${stop.label}`,
+        label: `${stop.type === "pickup" ? "Don" : "Tra"} ${stop.passengerOrder}: ${stop.label}`,
       });
     });
     if (driverPos && !isDone) {
-      list.push({ position: driverPos, kind: "driver", label: "Vị trí của bạn" });
+      list.push({ position: driverPos, kind: "driver", label: "Vi tri cua ban" });
     }
     return list;
   }, [stops, currentIndex, driverPos, isDone]);
 
-  const advance = () => setCurrentIndex((i) => i + 1);
+  const advance = () => setCurrentIndex((index) => index + 1);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -87,10 +83,10 @@ export function PoolNavigation({
         />
         <MapLegend
           items={[
-            { color: "#ef4444", label: "Điểm đến tiếp theo" },
-            { color: "#10b981", label: "Điểm đón" },
-            { color: "#3b82f6", label: "Điểm trả" },
-            { color: "#f59e0b", label: "Vị trí của bạn" },
+            { color: "#ef4444", label: "Diem den tiep theo" },
+            { color: "#10b981", label: "Diem don" },
+            { color: "#3b82f6", label: "Diem tra" },
+            { color: "#f59e0b", label: "Vi tri cua ban" },
           ]}
         />
       </div>
@@ -99,13 +95,13 @@ export function PoolNavigation({
         <CardContent className="flex flex-col gap-4 p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             <Navigation className="h-4 w-4" />
-            Định tuyến chuyến ghép
+            Dinh tuyen chuyen ghep
           </div>
 
           <ol className="flex flex-col gap-2">
-            {stops.map((stop, i) => {
-              const done = i < currentIndex;
-              const active = i === currentIndex;
+            {stops.map((stop, index) => {
+              const done = index < currentIndex;
+              const active = index === currentIndex;
               return (
                 <li
                   key={stop.sequence}
@@ -125,7 +121,7 @@ export function PoolNavigation({
                   </span>
                   <div className="flex flex-col">
                     <span className="font-medium">
-                      {stop.type === "pickup" ? "Đón" : "Trả"} khách {stop.passengerOrder}
+                      {stop.type === "pickup" ? "Don" : "Tra"} khach {stop.passengerOrder}
                     </span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
@@ -140,18 +136,18 @@ export function PoolNavigation({
           {isDone ? (
             <div className="flex flex-col gap-3">
               <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                Đã hoàn thành tất cả điểm đón/trả của chuyến ghép.
+                Da hoan thanh tat ca diem don/tra cua chuyen ghep.
               </p>
               {completionError ? (
                 <p className="text-sm text-destructive">{completionError}</p>
               ) : null}
               <Button onClick={onComplete} disabled={isCompleting}>
-                {isCompleting ? "Đang hoàn thành..." : "Hoàn thành chuyến ghép"}
+                {isCompleting ? "Dang hoan thanh..." : "Hoan thanh chuyen ghep"}
               </Button>
             </div>
           ) : (
             <Button onClick={advance}>
-              {currentStop ? stopActionLabel(currentStop) : "Tiếp tục"}
+              {currentStop ? stopActionLabel(currentStop) : "Tiep tuc"}
             </Button>
           )}
         </CardContent>

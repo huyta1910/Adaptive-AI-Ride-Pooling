@@ -138,7 +138,10 @@ class PoolRepository:
                     Notification(
                         user_id=passenger.user_id,
                         title="Ride completed",
-                        body="Your pooled ride has been completed. You can book a new ride now.",
+                        body=(
+                            f"Your pooled ride from {booking.pickup_label} to "
+                            f"{booking.dropoff_label} is complete. Thanks for sharing the trip!"
+                        ),
                         status="unread",
                     )
                 )

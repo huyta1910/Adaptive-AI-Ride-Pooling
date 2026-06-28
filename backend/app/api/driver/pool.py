@@ -14,7 +14,7 @@ async def list_pool_suggestions(
     driver_id: UUID,
     service: PoolServiceDep,
 ) -> ApiResponse[list[PoolSuggestion]]:
-    data = service.list_suggestions()
+    data = service.list_suggestions(driver_id)
     return ApiResponse(data=data, message="Pool suggestions")
 
 
@@ -27,7 +27,7 @@ async def get_pool_suggestion(
     group_id: UUID,
     service: PoolServiceDep,
 ) -> ApiResponse[PoolSuggestion]:
-    data = service.get_suggestion(group_id)
+    data = service.get_suggestion(group_id, driver_id)
     return ApiResponse(data=data, message="Pool suggestion")
 
 
