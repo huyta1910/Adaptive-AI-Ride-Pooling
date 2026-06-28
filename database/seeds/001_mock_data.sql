@@ -3,6 +3,8 @@
 -- Identity map (frontend hardcodes / overrides these ids):
 --   passenger A  -> passengers.id ...201 (users ...101)   [PassengerDashboardPage hardcodes ...201]
 --   passenger B  -> passengers.id ...202 (users ...103)   [backend-only, feeds the driver demo]
+--   passenger C  -> passengers.id ...203 (users ...113)   [seeded pool route test]
+--   passenger D  -> passengers.id ...204 (users ...114)   [seeded pool route test]
 --   drivers      -> drivers.id     ...301-...310 (users ...102, ...104-...112)
 --   demo driver  -> drivers.id     ...301 (users ...102)  [?driverId=...301 override]
 --
@@ -19,6 +21,8 @@ INSERT INTO users (id, email, full_name, role, status)
 VALUES
   ('00000000-0000-0000-0000-000000000101', 'passenger@example.com', 'Sample Passenger', 'passenger', 'active'),
   ('00000000-0000-0000-0000-000000000103', 'passenger2@example.com', 'Sample Passenger Two', 'passenger', 'active'),
+  ('00000000-0000-0000-0000-000000000113', 'passenger3@example.com', 'Sample Passenger Three', 'passenger', 'active'),
+  ('00000000-0000-0000-0000-000000000114', 'passenger4@example.com', 'Sample Passenger Four', 'passenger', 'active'),
   ('00000000-0000-0000-0000-000000000102', 'driver@example.com', 'Sample Driver', 'driver', 'active'),
   ('00000000-0000-0000-0000-000000000104', 'driver02@example.com', 'Demo Driver 02', 'driver', 'active'),
   ('00000000-0000-0000-0000-000000000105', 'driver03@example.com', 'Demo Driver 03', 'driver', 'active'),
@@ -34,7 +38,9 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO passengers (id, user_id, display_name)
 VALUES
   ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Sample Passenger'),
-  ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000103', 'Sample Passenger Two')
+  ('00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000103', 'Sample Passenger Two'),
+  ('00000000-0000-0000-0000-000000000203', '00000000-0000-0000-0000-000000000113', 'Sample Passenger Three'),
+  ('00000000-0000-0000-0000-000000000204', '00000000-0000-0000-0000-000000000114', 'Sample Passenger Four')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO drivers (
@@ -67,7 +73,9 @@ ON CONFLICT (license_number) DO UPDATE SET
 INSERT INTO ride_pool_groups (id, status, origin_area, destination_area, driver_id)
 VALUES
   ('00000000-0000-0000-0000-000000000401', 'draft', 'Sample Origin', 'Sample Destination', NULL),
-  ('00000000-0000-0000-0000-000000000402', 'pending', 'Phường Sài Gòn, Thành phố Hồ Chí Minh', 'Phường Bình Thạnh, Thành phố Hồ Chí Minh', NULL)
+  ('00000000-0000-0000-0000-000000000402', 'pending', 'Phường Sài Gòn, Thành phố Hồ Chí Minh', 'Phường Bình Thạnh, Thành phố Hồ Chí Minh', NULL),
+  ('00000000-0000-0000-0000-000000000403', 'pending', 'Phuong Long Truong, Thanh pho Ho Chi Minh', 'Phuong An Phu, Thanh pho Ho Chi Minh', NULL),
+  ('00000000-0000-0000-0000-000000000404', 'pending', 'Phuong Binh Thanh, Thanh pho Ho Chi Minh', 'Phuong Linh Xuan, Thanh pho Ho Chi Minh', NULL)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO bookings (
@@ -94,6 +102,27 @@ VALUES
     'matching',
     NOW() - INTERVAL '10 minutes',
     47000.00
+  ),
+  -- (2-3) Extra PENDING pools -> more driver routes to test.
+  (
+    '00000000-0000-0000-0000-000000000607',
+    '00000000-0000-0000-0000-000000000203',
+    'Nha van hoa sinh vien, Phuong Long Truong, Thanh pho Ho Chi Minh',
+    'Estella Place, Phuong An Phu, Thanh pho Ho Chi Minh',
+    10.875900, 106.807700, 10.802500, 106.742300,
+    'matching',
+    NOW() - INTERVAL '7 minutes',
+    52000.00
+  ),
+  (
+    '00000000-0000-0000-0000-000000000608',
+    '00000000-0000-0000-0000-000000000204',
+    '188 Nguyen Xi, Phuong Binh Thanh, Thanh pho Ho Chi Minh',
+    'Dai hoc Quoc Te, Phuong Linh Xuan, Thanh pho Ho Chi Minh',
+    10.810200, 106.710100, 10.877800, 106.801700,
+    'matching',
+    NOW() - INTERVAL '5 minutes',
+    65000.00
   ),
   -- (2-4) COMPLETED rides -> driver earnings + passenger history (A: 604/606, B: 605).
   (
@@ -134,6 +163,18 @@ VALUES
     '00000000-0000-0000-0000-000000000701',
     '00000000-0000-0000-0000-000000000402',
     '00000000-0000-0000-0000-000000000601',
+    'pending'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000702',
+    '00000000-0000-0000-0000-000000000403',
+    '00000000-0000-0000-0000-000000000607',
+    'pending'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000703',
+    '00000000-0000-0000-0000-000000000404',
+    '00000000-0000-0000-0000-000000000608',
     'pending'
   )
 ON CONFLICT (id) DO NOTHING;
