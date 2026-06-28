@@ -1,7 +1,7 @@
 """add notification category
 
 Revision ID: 202607010001
-Revises: 202606300001
+Revises: 202606300002
 Create Date: 2026-07-01
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "202607010001"
-down_revision: str | None = "202606300001"
+down_revision: str | None = "202606300002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

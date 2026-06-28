@@ -1,7 +1,7 @@
 """add weather alert notifications
 
-Revision ID: 202606300001
-Revises: 202606290001
+Revision ID: 202606300002
+Revises: 202606300001
 Create Date: 2026-06-30
 """
 
@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "202606300001"
-down_revision: str | None = "202606290001"
+revision: str = "202606300002"
+down_revision: str | None = "202606300001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
