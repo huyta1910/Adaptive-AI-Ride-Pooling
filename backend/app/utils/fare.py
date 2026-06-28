@@ -7,6 +7,7 @@ def estimate_fare(
     pickup_longitude: Decimal | None,
     dropoff_latitude: Decimal | None,
     dropoff_longitude: Decimal | None,
+    passenger_count: int = 1,
 ) -> Decimal | None:
     if (
         pickup_latitude is None
@@ -22,8 +23,24 @@ def estimate_fare(
         float(dropoff_latitude),
         float(dropoff_longitude),
     )
-    fare = max(18_000, 12_000 + (distance_km * 7_000))
-    return Decimal(str(round(fare, -3))).quantize(Decimal("0.01"))
+    return fare_from_distance_km(distance_km, passenger_count=passenger_count)
+
+
+def fare_from_distance_m(distance_m: float | Decimal | None, passenger_count: int = 1) -> Decimal | None:
+    if distance_m is None:
+        return None
+
+    distance_km = Decimal(str(distance_m)) / Decimal("1000")
+    return fare_from_distance_km(distance_km, passenger_count=passenger_count)
+
+
+def fare_from_distance_km(
+    distance_km: float | Decimal,
+    passenger_count: int = 1,
+) -> Decimal:
+    rider_count = max(1, passenger_count)
+    fare = (Decimal(str(distance_km)) * Decimal("3000")) / Decimal(rider_count)
+    return fare.quantize(Decimal("0.01"))
 
 
 def _haversine_km(

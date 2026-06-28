@@ -19,6 +19,7 @@ from app.schemas.driver.pool import (
 )
 from app.services.driver.geo_mock import build_route, demo_congestion_zones, geocode
 from app.services.driver.routing import road_route
+from app.utils.fare import fare_from_distance_m
 
 
 class PoolService:
@@ -73,6 +74,7 @@ class PoolService:
                 detail="Driver not found",
             )
         members_with_bookings = self._pools.get_members_with_bookings(group.id)
+        self._apply_shared_pool_fare(members_with_bookings)
         self._pools.confirm_assignment(group, driver, members_with_bookings)
         return self._to_suggestion(group, _driver_point(driver))
 
@@ -159,6 +161,11 @@ class PoolService:
         ]
         ordered_stops = pickups + ordered_dropoffs
         routed = road_route(ordered_stops, avoid_congestion=True)
+        shared_fare = fare_from_distance_m(routed.distance_m, passenger_count=len(passengers))
+        if shared_fare is not None:
+            total_fare = shared_fare
+            for passenger in passengers:
+                passenger.estimated_fare = shared_fare
 
         # Navigation sequence: all pickups first, then drop-offs in optimal order.
         ordered: list[tuple[str, PoolPassenger, GeoPoint | None]] = []
@@ -201,6 +208,67 @@ class PoolService:
             congestion_zones=demo_congestion_zones(),
             stops=stops,
         )
+
+    def _apply_shared_pool_fare(
+        self,
+        members_with_bookings,
+    ) -> None:
+        suggestion = self._preview_shared_pool_fare(members_with_bookings)
+        if suggestion is None:
+            return
+
+        for _, booking in members_with_bookings:
+            if booking is not None:
+                booking.estimated_fare = suggestion
+
+    def _preview_shared_pool_fare(
+        self,
+        members_with_bookings,
+    ) -> Decimal | None:
+        points: list[GeoPoint] = []
+        pickups: list[GeoPoint] = []
+        passengers: list[PoolPassenger] = []
+
+        for index, (_, booking) in enumerate(members_with_bookings):
+            if booking is None:
+                continue
+            pickup = _booking_point(booking.pickup_latitude, booking.pickup_longitude) or geocode(
+                booking.pickup_label
+            )
+            dropoff = _booking_point(booking.dropoff_latitude, booking.dropoff_longitude) or geocode(
+                booking.dropoff_label
+            )
+            if pickup is not None:
+                pickups.append(pickup)
+            passengers.append(
+                PoolPassenger(
+                    pickup_label=booking.pickup_label,
+                    dropoff_label=booking.dropoff_label,
+                    estimated_fare=booking.estimated_fare,
+                    stop_order=index + 1,
+                    pickup=pickup,
+                    dropoff=dropoff,
+                )
+            )
+
+        if not passengers:
+            return None
+
+        dropoff_seq = _optimized_dropoff_sequence(members_with_bookings)
+        if dropoff_seq is None:
+            dropoff_seq = list(range(len(passengers)))
+
+        ordered_dropoffs = [
+            passengers[i].dropoff for i in dropoff_seq if passengers[i].dropoff is not None
+        ]
+        points.extend(pickups)
+        points.extend(ordered_dropoffs)
+
+        if len(points) < 2:
+            return None
+
+        routed = road_route(points, avoid_congestion=True)
+        return fare_from_distance_m(routed.distance_m, passenger_count=len(passengers))
 
 
 def _leg_route(prev: GeoPoint | None, cur: GeoPoint | None) -> list[GeoPoint]:
