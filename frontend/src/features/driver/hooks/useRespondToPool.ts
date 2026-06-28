@@ -19,5 +19,10 @@ export function useRespondToPool(driverId: string) {
         queryKey: driverQueryKeys.poolSuggestions(driverId),
       });
     },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: driverQueryKeys.poolSuggestions(driverId),
+      });
+    },
   });
 }

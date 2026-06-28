@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { Card, CardContent } from "@/components/ui/card";
 import { PoolSuggestionCard } from "@/components/driver/pool/PoolSuggestionCard";
@@ -17,9 +18,16 @@ export function DriverPoolPage() {
 
   const suggestionsQuery = usePoolSuggestions(driverId);
   const respondMutation = useRespondToPool(driverId ?? "");
+  const resetResponseError = respondMutation.reset;
 
   const suggestions = suggestionsQuery.data ?? [];
   const isLive = Boolean(driverId) && !suggestionsQuery.isError;
+
+  useEffect(() => {
+    if (respondMutation.isError && suggestionsQuery.dataUpdatedAt > 0) {
+      resetResponseError();
+    }
+  }, [respondMutation.isError, resetResponseError, suggestionsQuery.dataUpdatedAt]);
 
   const handleAccept = (groupId: string) => {
     respondMutation.mutate(
@@ -30,6 +38,9 @@ export function DriverPoolPage() {
             ? `?driverId=${searchParams.get("driverId")}`
             : "";
           navigate(`/dashboard/driver/pool/${groupId}${suffix}`);
+        },
+        onError: () => {
+          void suggestionsQuery.refetch();
         },
       },
     );
@@ -59,10 +70,13 @@ export function DriverPoolPage() {
             title="Action failed"
             message={
               respondMutation.error instanceof Error
-                ? respondMutation.error.message
+                ? `${respondMutation.error.message}. This pool may have expired; refresh the suggestions and try the latest card.`
                 : undefined
             }
-            onRetry={() => respondMutation.reset()}
+            onRetry={() => {
+              respondMutation.reset();
+              void suggestionsQuery.refetch();
+            }}
           />
         ) : null}
 
@@ -100,7 +114,14 @@ export function DriverPoolPage() {
                 isPending={respondMutation.isPending}
                 onAccept={handleAccept}
                 onDecline={(id) =>
-                  respondMutation.mutate({ groupId: id, action: "decline" })
+                  respondMutation.mutate(
+                    { groupId: id, action: "decline" },
+                    {
+                      onError: () => {
+                        void suggestionsQuery.refetch();
+                      },
+                    },
+                  )
                 }
               />
             ))}
