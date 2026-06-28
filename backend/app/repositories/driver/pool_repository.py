@@ -28,6 +28,15 @@ class PoolRepository:
     def get(self, group_id: UUID) -> RidePoolGroup | None:
         return self.session.get(RidePoolGroup, group_id)
 
+    def get_latest_pending(self) -> RidePoolGroup | None:
+        stmt = (
+            select(RidePoolGroup)
+            .where(RidePoolGroup.status == "pending")
+            .order_by(RidePoolGroup.created_at.desc())
+            .limit(1)
+        )
+        return self.session.scalars(stmt).first()
+
     def get_members_with_bookings(
         self, group_id: UUID
     ) -> list[tuple[RidePoolMember, Booking | None]]:

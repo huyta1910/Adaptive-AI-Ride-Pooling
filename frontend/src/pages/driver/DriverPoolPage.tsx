@@ -33,11 +33,11 @@ export function DriverPoolPage() {
     respondMutation.mutate(
       { groupId, action: "accept" },
       {
-        onSuccess: () => {
+        onSuccess: (acceptedPool) => {
           const suffix = searchParams.get("driverId")
             ? `?driverId=${searchParams.get("driverId")}`
             : "";
-          navigate(`/dashboard/driver/pool/${groupId}${suffix}`);
+          navigate(`/dashboard/driver/pool/${acceptedPool.id}${suffix}`);
         },
         onError: () => {
           void suggestionsQuery.refetch();

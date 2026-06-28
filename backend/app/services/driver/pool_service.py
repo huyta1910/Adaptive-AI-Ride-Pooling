@@ -48,10 +48,12 @@ class PoolService:
     ) -> PoolSuggestion:
         group = self._pools.get(group_id)
         if group is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Pool suggestion not found",
-            )
+            group = self._pools.get_latest_pending()
+            if group is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Pool suggestion not found",
+                )
         if group.status != "pending":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
