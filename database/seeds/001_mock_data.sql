@@ -224,4 +224,13 @@ VALUES
     'mock',
     TRUE
   )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  city = EXCLUDED.city,
+  event_type = EXCLUDED.event_type,
+  severity = EXCLUDED.severity,
+  title = EXCLUDED.title,
+  message = EXCLUDED.message,
+  starts_at = EXCLUDED.starts_at,
+  ends_at = EXCLUDED.ends_at,
+  source = EXCLUDED.source,
+  is_active = EXCLUDED.is_active;

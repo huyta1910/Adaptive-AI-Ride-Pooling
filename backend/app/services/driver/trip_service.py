@@ -15,6 +15,7 @@ from app.schemas.driver.trip import (
 )
 from app.services.driver.geo_mock import demo_congestion_zones, geocode
 from app.services.driver.routing import road_route
+from app.utils.fare import estimate_fare
 
 # Trip statuses where a live tracking map is meaningful.
 _ACTIVE_STATUSES = {
@@ -108,6 +109,13 @@ class TripService:
         if target in {DriverTripStatus.completed.value, DriverTripStatus.cancelled.value}:
             completed_at = datetime.now(timezone.utc)
             trip.completed_at = completed_at
+            if booking is not None and booking.estimated_fare is None:
+                booking.estimated_fare = estimate_fare(
+                    booking.pickup_latitude,
+                    booking.pickup_longitude,
+                    booking.dropoff_latitude,
+                    booking.dropoff_longitude,
+                )
             if trip.total_fare is None and booking is not None:
                 trip.total_fare = booking.estimated_fare
 

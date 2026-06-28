@@ -57,6 +57,7 @@ class WeatherAlertRepository:
             title=weather_alert.title,
             body=weather_alert.message,
             status="unread",
+            category="weather_alert",
         )
         self.session.add(notification)
         self.session.flush()

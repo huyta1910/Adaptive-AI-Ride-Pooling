@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from math import asin, cos, radians, sin, sqrt
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking
@@ -13,6 +12,7 @@ from app.models.ride_pool_group import RidePoolGroup
 from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
 from app.repositories.base import BaseRepository
+from app.utils.fare import estimate_fare
 
 
 class PassengerRepository(BaseRepository[Passenger]):
@@ -50,7 +50,7 @@ class PassengerRepository(BaseRepository[Passenger]):
             dropoff_longitude=dropoff_longitude,
             status="matching",
             requested_at=datetime.now(UTC),
-            estimated_fare=_estimate_fare(
+            estimated_fare=estimate_fare(
                 pickup_latitude,
                 pickup_longitude,
                 dropoff_latitude,
@@ -100,7 +100,7 @@ class PassengerRepository(BaseRepository[Passenger]):
     def cancel_ride_request(self, booking: Booking) -> Booking:
         booking.status = "cancelled"
         if booking.estimated_fare is None:
-            booking.estimated_fare = _estimate_fare(
+            booking.estimated_fare = estimate_fare(
                 booking.pickup_latitude,
                 booking.pickup_longitude,
                 booking.dropoff_latitude,
@@ -160,7 +160,17 @@ class PassengerRepository(BaseRepository[Passenger]):
         statement = (
             select(Notification)
             .where(Notification.user_id == user_id)
-            .order_by(Notification.created_at.desc())
+            .order_by(
+                case(
+                    (
+                        (Notification.category == "weather_alert")
+                        & (Notification.status != "read"),
+                        0,
+                    ),
+                    else_=1,
+                ),
+                Notification.created_at.desc(),
+            )
             .limit(limit)
         )
         return list(self.session.scalars(statement).all())
@@ -188,46 +198,3 @@ class PassengerRepository(BaseRepository[Passenger]):
             .where(Booking.passenger_id == passenger_id, TripHistory.status == "completed")
         )
         return int(self.session.scalar(statement) or 0)
-
-
-def _estimate_fare(
-    pickup_latitude: Decimal | None,
-    pickup_longitude: Decimal | None,
-    dropoff_latitude: Decimal | None,
-    dropoff_longitude: Decimal | None,
-) -> Decimal | None:
-    if (
-        pickup_latitude is None
-        or pickup_longitude is None
-        or dropoff_latitude is None
-        or dropoff_longitude is None
-    ):
-        return None
-
-    distance_km = _haversine_km(
-        float(pickup_latitude),
-        float(pickup_longitude),
-        float(dropoff_latitude),
-        float(dropoff_longitude),
-    )
-    fare = max(18_000, 12_000 + (distance_km * 7_000))
-    return Decimal(str(round(fare, -3))).quantize(Decimal("0.01"))
-
-
-def _haversine_km(
-    pickup_latitude: float,
-    pickup_longitude: float,
-    dropoff_latitude: float,
-    dropoff_longitude: float,
-) -> float:
-    earth_radius_km = 6371.0
-    lat_delta = radians(dropoff_latitude - pickup_latitude)
-    lon_delta = radians(dropoff_longitude - pickup_longitude)
-    pickup_lat_rad = radians(pickup_latitude)
-    dropoff_lat_rad = radians(dropoff_latitude)
-
-    a = (
-        sin(lat_delta / 2) ** 2
-        + cos(pickup_lat_rad) * cos(dropoff_lat_rad) * sin(lon_delta / 2) ** 2
-    )
-    return earth_radius_km * 2 * asin(sqrt(a))

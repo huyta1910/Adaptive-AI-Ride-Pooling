@@ -10,6 +10,7 @@ from app.models.passenger import Passenger
 from app.models.ride_pool_group import RidePoolGroup
 from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
+from app.utils.fare import estimate_fare
 
 # Booking states the matcher is allowed to (re)group. Anything that has been
 # accepted by a driver (booking -> "assigned", group -> "active") is left alone.
@@ -176,6 +177,8 @@ class MatchingRepository:
             self.session.add(member)
             if booking is None:
                 continue
+            if booking.estimated_fare is None:
+                booking.estimated_fare = _estimate_booking_fare(booking)
             booking.status = "assigned"
             self.session.add(booking)
             self.session.add(
@@ -183,6 +186,7 @@ class MatchingRepository:
                     booking_id=booking.id,
                     driver_id=driver.id,
                     status="assigned",
+                    total_fare=booking.estimated_fare,
                 )
             )
             passenger = self.session.get(Passenger, booking.passenger_id)
@@ -211,3 +215,12 @@ class MatchingRepository:
 
     def commit(self) -> None:
         self.session.commit()
+
+
+def _estimate_booking_fare(booking: Booking):
+    return estimate_fare(
+        booking.pickup_latitude,
+        booking.pickup_longitude,
+        booking.dropoff_latitude,
+        booking.dropoff_longitude,
+    )

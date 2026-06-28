@@ -12,6 +12,7 @@ from app.models.passenger import Passenger
 from app.models.ride_pool_group import RidePoolGroup
 from app.models.ride_pool_member import RidePoolMember
 from app.models.trip_history import TripHistory
+from app.utils.fare import estimate_fare
 
 ACTIVE_TRIP_STATUSES = ("assigned", "en_route", "in_progress")
 COMPLETED_TRIP_STATUS = "completed"
@@ -161,6 +162,8 @@ class DriverTripRepository:
         for member, booking, trip in self.session.execute(member_statement).all():
             member.status = member_status
             booking.status = booking_status
+            if booking.estimated_fare is None:
+                booking.estimated_fare = _estimate_booking_fare(booking)
             trip.status = trip_status
             if completed_at is not None and trip.completed_at is None:
                 trip.completed_at = completed_at
@@ -209,3 +212,12 @@ class DriverTripRepository:
             .order_by("day")
         )
         return list(self.session.execute(stmt).all())
+
+
+def _estimate_booking_fare(booking: Booking):
+    return estimate_fare(
+        booking.pickup_latitude,
+        booking.pickup_longitude,
+        booking.dropoff_latitude,
+        booking.dropoff_longitude,
+    )

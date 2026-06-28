@@ -24,11 +24,10 @@ class WeatherService:
             observed_at=datetime.now(timezone.utc),
         )
 
-        title = "⛈️ Cảnh báo mưa lớn"
+        title = "Heavy rain warning"
         body = (
-            f"Mưa lớn dự kiến sẽ xuất hiện trong khoảng {payload.minutes_until_rain} "
-            f"phút nữa tại {payload.location_label}. Bạn nên đặt xe trước ngay bây giờ "
-            "để tránh phải chờ lâu."
+            f"Heavy rain is expected in about {payload.minutes_until_rain} minutes near "
+            f"{payload.location_label}. Book now to avoid longer pickup waits."
         )
 
         user_ids = self._repo.list_passenger_user_ids()
