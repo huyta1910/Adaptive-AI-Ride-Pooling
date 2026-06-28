@@ -21,6 +21,10 @@ class MatchingRepository:
     def reset_pending_pools(self) -> None:
         """Tear down un-accepted pools so the matcher can regroup from scratch.
 
+        This is intentionally not used by the live driver polling flow because
+        deleting visible pending pools can make the driver's Accept button point
+        at a stale group id.
+
         Only pending groups whose members are all still rematchable are removed;
         seeded/active pools (bookings already confirmed) are left untouched. The
         freed bookings are returned to the ``matching`` queue.

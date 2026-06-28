@@ -33,10 +33,6 @@ class MatchingService:
         if not self._repo.has_unmatched_requests():
             return MatchingSummary(pools_created=0, bookings_matched=0, total_cost=0.0)
 
-        # Free previously-published (but not yet accepted) pools so we always
-        # regroup against the full set of waiting requests.
-        self._repo.reset_pending_pools()
-
         bookings = self._repo.list_matchable_bookings(limit=MAX_BOOKINGS_PER_PASS)
         if not bookings:
             self._repo.commit()
