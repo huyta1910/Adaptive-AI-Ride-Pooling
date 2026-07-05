@@ -63,12 +63,21 @@ export interface PassengerDashboard {
 }
 
 export interface RideRequestPayload {
+  pickup_address: PassengerAddressPayload;
+  dropoff_address: PassengerAddressPayload;
   pickup_label: string;
   dropoff_label: string;
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
   dropoff_latitude?: number | null;
   dropoff_longitude?: number | null;
+}
+
+export interface PassengerAddressPayload {
+  houseNumber: string;
+  street: string;
+  province: string;
+  ward: string;
 }
 
 export interface PassengerProfilePayload {
@@ -114,13 +123,11 @@ export interface PassengerLocationSuggestion {
   distance_meters: number | null;
 }
 
-export interface VietnamProvinceOption {
-  code: number;
+export interface AddressOption {
+  code: string;
   name: string;
 }
 
-export interface VietnamWardOption {
-  code: number;
-  name: string;
-  province_code: number;
-}
+export type VietnamProvinceOption = AddressOption;
+
+export type VietnamWardOption = AddressOption;

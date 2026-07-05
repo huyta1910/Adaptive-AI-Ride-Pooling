@@ -178,24 +178,23 @@ export async function getVietnamProvinceOptions(): Promise<VietnamProvinceOption
   const provinces = await getVietnamProvinces();
   return provinces
     .map((province) => ({
-      code: province.code,
+      code: String(province.code),
       name: province.name,
     }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .sort((left, right) => left.name.localeCompare(right.name, "vi"));
 }
 
-export async function getVietnamWardOptions(provinceCode: number): Promise<VietnamWardOption[]> {
+export async function getVietnamWardOptions(provinceCode: string): Promise<VietnamWardOption[]> {
   const response = await vietnamAdminClient.get<VietnamProvinceApiItem>(`/p/${provinceCode}`, {
     params: { depth: 2 },
   });
 
   return (response.data.wards ?? [])
     .map((ward) => ({
-      code: ward.code,
+      code: String(ward.code),
       name: ward.name,
-      province_code: ward.province_code,
     }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .sort((left, right) => left.name.localeCompare(right.name, "vi"));
 }
 
 function provinceNameFor(provinces: VietnamProvinceApiItem[], provinceCode: number): string {

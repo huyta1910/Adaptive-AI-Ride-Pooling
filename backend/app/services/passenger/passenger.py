@@ -60,8 +60,8 @@ class PassengerService:
         booking = self.repository.create_ride_request(
             passenger_id=passenger_id,
             user_id=passenger.user_id,
-            pickup_label=payload.pickup_label,
-            dropoff_label=payload.dropoff_label,
+            pickup_label=payload.pickup_address.format_full_address(),
+            dropoff_label=payload.dropoff_address.format_full_address(),
             pickup_latitude=payload.pickup_latitude,
             pickup_longitude=payload.pickup_longitude,
             dropoff_latitude=payload.dropoff_latitude,

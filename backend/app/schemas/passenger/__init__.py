@@ -1,4 +1,5 @@
 from app.schemas.passenger.passenger import (
+    AddressInput,
     NotificationRead,
     PassengerDashboardRead,
     PassengerProfileRead,
@@ -10,6 +11,7 @@ from app.schemas.passenger.passenger import (
 )
 
 __all__ = [
+    "AddressInput",
     "NotificationRead",
     "PassengerDashboardRead",
     "PassengerProfileRead",

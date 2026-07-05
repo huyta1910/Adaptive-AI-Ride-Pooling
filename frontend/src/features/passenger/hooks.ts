@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { addressApi } from "@/features/passenger/addressService";
 import { passengerApi } from "@/features/passenger/api";
 import type {
   DeviceCoordinates,
@@ -14,7 +15,7 @@ const passengerKeys = {
   rideHistory: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-history"] as const,
   notifications: (passengerId: string) => [...passengerKeys.all(passengerId), "notifications"] as const,
   vietnamProvinces: () => ["passenger", "vietnam-provinces"] as const,
-  vietnamWards: (provinceCode: number | null) =>
+  vietnamWards: (provinceCode: string | null) =>
     ["passenger", "vietnam-wards", provinceCode] as const,
   locationSuggestions: (query: string, coordinates?: DeviceCoordinates | null) =>
     [
@@ -135,15 +136,15 @@ export function useNormalizeVietnamLocation() {
 export function useVietnamProvinceOptions() {
   return useQuery({
     queryKey: passengerKeys.vietnamProvinces(),
-    queryFn: passengerApi.getVietnamProvinceOptions,
+    queryFn: addressApi.getProvinces,
     staleTime: 24 * 60 * 60 * 1_000,
   });
 }
 
-export function useVietnamWardOptions(provinceCode: number | null) {
+export function useVietnamWardOptions(provinceCode: string | null) {
   return useQuery({
     queryKey: passengerKeys.vietnamWards(provinceCode),
-    queryFn: () => passengerApi.getVietnamWardOptions(provinceCode ?? 0),
+    queryFn: () => addressApi.getWards(provinceCode ?? ""),
     enabled: provinceCode !== null,
     staleTime: 24 * 60 * 60 * 1_000,
   });
