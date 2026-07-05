@@ -5,7 +5,11 @@ import { cn } from "@/utils/cn";
 
 const navigationItems = [
   { href: ROUTES.passengerDashboard, label: "Passenger", icon: Home },
-  { href: ROUTES.driverDashboard, label: "Driver", icon: Car },
+  {
+    href: `${ROUTES.driverDashboard}/pool?driverId=00000000-0000-0000-0000-000000000301`,
+    label: "Driver",
+    icon: Car,
+  },
   { href: ROUTES.notifications, label: "Notifications", icon: Bell },
   { href: ROUTES.profile, label: "Profile", icon: UserRound },
 ];
