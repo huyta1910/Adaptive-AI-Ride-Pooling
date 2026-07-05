@@ -8,6 +8,7 @@ import {
   useGeocodeVietnamAddress,
   useNormalizeVietnamLocation,
   useReverseGeocodeDeviceLocation,
+  useVietnamLocationSuggestions,
   useVietnamProvinceOptions,
   useVietnamWardOptions,
 } from "@/features/passenger/hooks";
@@ -117,12 +118,22 @@ export function VietnamLocationField({
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "allowed" | "blocked">(
     "idle",
   );
+  const [deviceCoordinates, setDeviceCoordinates] = useState<DeviceCoordinates | null>(null);
+  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
   const normalizeLocation = useNormalizeVietnamLocation();
   const geocodeAddress = useGeocodeVietnamAddress();
   const reverseGeocode = useReverseGeocodeDeviceLocation();
   const provinces = useVietnamProvinceOptions();
   const wards = useVietnamWardOptions(addressParts.provinceCode);
   const composedAddress = useMemo(() => composeAddress(addressParts), [addressParts]);
+  const suggestionQuery = useMemo(
+    () => [addressParts.houseNumber, addressParts.street, addressParts.ward, addressParts.province]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" "),
+    [addressParts.houseNumber, addressParts.province, addressParts.street, addressParts.ward],
+  );
+  const suggestions = useVietnamLocationSuggestions(suggestionQuery, deviceCoordinates);
   const isBusy = geocodeAddress.isPending || reverseGeocode.isPending || normalizeLocation.isPending;
 
   useEffect(() => {
@@ -143,6 +154,7 @@ export function VietnamLocationField({
   };
 
   const updateAddressPart = (key: "houseNumber" | "street", nextValue: string) => {
+    setIsSuggestionOpen(true);
     commitParts({ ...addressParts, [key]: nextValue });
   };
 
@@ -211,6 +223,42 @@ export function VietnamLocationField({
     });
   };
 
+  const applyPlaceSuggestion = (suggestion: PassengerLocationSuggestion) => {
+    const inferredStreetParts = inferStreetParts(suggestion);
+    const streetParts = {
+      houseNumber: inferredStreetParts.houseNumber || addressParts.houseNumber,
+      street: inferredStreetParts.street || addressParts.street,
+    };
+    setIsSuggestionOpen(false);
+    onCoordinatesChange?.({
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    });
+    normalizeLocation.mutate(suggestion.label, {
+      onSuccess: (result) => {
+        const match = result.matched_location ?? result.alternatives[0] ?? null;
+        if (match) {
+          const province = findOptionByName(provinces.data, match.province);
+          commitParts(
+            {
+              ...addressParts,
+              ...streetParts,
+              province: match.province,
+              provinceCode: province?.code ?? null,
+              ward: match.commune_or_ward,
+              wardCode: match.administrative_code,
+            },
+            false,
+          );
+          return;
+        }
+
+        commitParts({ ...addressParts, ...streetParts }, false);
+      },
+      onError: () => commitParts({ ...addressParts, ...streetParts }, false),
+    });
+  };
+
   const handleUseDeviceLocation = () => {
     if (!navigator.geolocation) {
       setLocationStatus("blocked");
@@ -224,6 +272,7 @@ export function VietnamLocationField({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         };
+        setDeviceCoordinates(coordinates);
         reverseGeocode.mutate(coordinates, {
           onSuccess: (suggestion) => {
             applyDeviceLocation(suggestion);
@@ -251,6 +300,7 @@ export function VietnamLocationField({
         <Input
           value={addressParts.houseNumber}
           onChange={(event) => updateAddressPart("houseNumber", event.target.value)}
+          onFocus={() => setIsSuggestionOpen(true)}
           aria-invalid={Boolean(error)}
           placeholder="House no."
           disabled={disabled || isBusy}
@@ -259,12 +309,42 @@ export function VietnamLocationField({
         <Input
           value={addressParts.street}
           onChange={(event) => updateAddressPart("street", event.target.value)}
+          onFocus={() => setIsSuggestionOpen(true)}
           aria-invalid={Boolean(error)}
           placeholder={placeholder ?? "Street"}
           disabled={disabled || isBusy}
           autoComplete="off"
         />
       </div>
+      {isSuggestionOpen && !disabled && suggestionQuery.length >= 2 ? (
+        <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
+          {suggestions.isFetching ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Searching nearby places...</div>
+          ) : null}
+          {(suggestions.data ?? []).slice(0, 6).map((suggestion) => (
+            <button
+              key={suggestion.id}
+              type="button"
+              className="grid w-full gap-0.5 border-t px-3 py-2 text-left first:border-t-0 hover:bg-accent"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyPlaceSuggestion(suggestion)}
+            >
+              <span className="truncate text-sm font-medium">{suggestion.name}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {suggestion.address}
+                {suggestion.distance_meters !== null
+                  ? ` · ${(suggestion.distance_meters / 1000).toFixed(1)} km`
+                  : ""}
+              </span>
+            </button>
+          ))}
+          {!suggestions.isFetching && suggestions.data?.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              No matching place found. Keep typing the address.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <SearchableAddressSelect
           label="Tỉnh / Thành phố"
