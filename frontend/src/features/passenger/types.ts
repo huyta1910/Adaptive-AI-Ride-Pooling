@@ -78,6 +78,11 @@ export interface PassengerAddressPayload {
   street: string;
   province: string;
   ward: string;
+  fullAddress?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  placeId?: string;
+  type?: "poi" | "address";
 }
 
 export interface PassengerResolvedLocation extends PassengerAddressPayload {
@@ -85,6 +90,7 @@ export interface PassengerResolvedLocation extends PassengerAddressPayload {
   latitude: number | null;
   longitude: number | null;
   placeId: string;
+  type: "poi" | "address";
 }
 
 export interface PassengerProfilePayload {

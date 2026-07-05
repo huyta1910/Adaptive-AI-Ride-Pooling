@@ -16,6 +16,11 @@ const emptyAddress = {
   street: "",
   province: "",
   ward: "",
+  fullAddress: "",
+  latitude: null,
+  longitude: null,
+  placeId: "",
+  type: undefined,
 };
 
 interface RideRequestFormProps {
@@ -56,6 +61,11 @@ export function RideRequestForm({ passengerId, disabled = false }: RideRequestFo
         street: location.street,
         province: location.province,
         ward: location.ward,
+        fullAddress: location.fullAddress,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        placeId: location.placeId,
+        type: location.type,
       },
       { shouldValidate: true },
     );

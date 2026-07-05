@@ -2,31 +2,51 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AddressInput(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    house_number: str = Field(alias="houseNumber", min_length=1, max_length=60)
-    street: str = Field(min_length=1, max_length=120)
-    province: str = Field(min_length=1, max_length=120)
-    ward: str = Field(min_length=1, max_length=120)
+    house_number: str = Field(default="", alias="houseNumber", max_length=60)
+    street: str = Field(default="", max_length=120)
+    province: str = Field(default="", max_length=120)
+    ward: str = Field(default="", max_length=120)
+    full_address: str = Field(default="", alias="fullAddress", max_length=255)
+    latitude: Decimal | None = Field(default=None, ge=-90, le=90)
+    longitude: Decimal | None = Field(default=None, ge=-180, le=180)
+    place_id: str = Field(default="", alias="placeId", max_length=120)
+    type: str | None = Field(default=None)
 
-    @field_validator("house_number", "street", "province", "ward")
+    @field_validator("house_number", "street", "province", "ward", "full_address", "place_id")
     @classmethod
-    def require_non_blank(cls, value: str) -> str:
-        stripped_value = value.strip()
-        if not stripped_value:
-            raise ValueError("Field is required.")
-        return stripped_value
+    def trim_text(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_resolved_address(self) -> "AddressInput":
+        has_coordinates = self.latitude is not None and self.longitude is not None
+        has_selected_location = bool(self.place_id) or has_coordinates
+        has_exact_address = bool(self.house_number and self.street)
+
+        if has_selected_location or has_exact_address:
+            return self
+
+        raise ValueError("Please enter a house number or choose a specific location.")
 
     def format_full_address(self) -> str:
-        return ", ".join(
+        structured_address = ", ".join(
             part.strip()
             for part in [self.house_number, self.street, self.ward, self.province]
             if part.strip()
         )
+        if self.ward and self.province:
+            return structured_address
+
+        if self.house_number and self.street:
+            return structured_address
+
+        return self.full_address or structured_address
 
 
 class RideRequestCreate(BaseModel):

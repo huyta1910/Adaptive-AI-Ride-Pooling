@@ -55,6 +55,8 @@ function toResolvedLocation(
   administrativeLocation: VietnamAdministrativeLocation | null,
 ): PassengerResolvedLocation {
   const streetParts = extractStreetParts(input, suggestion);
+  const isExactAddress = Boolean(streetParts.houseNumber && streetParts.street);
+  const locationType: PassengerResolvedLocation["type"] = isExactAddress ? "address" : "poi";
   const baseLocation = {
     fullAddress: suggestion.label,
     houseNumber: streetParts.houseNumber,
@@ -64,11 +66,14 @@ function toResolvedLocation(
     latitude: suggestion.latitude,
     longitude: suggestion.longitude,
     placeId: suggestion.id,
+    type: locationType,
   };
+  const structuredAddress = composeFullAddress(baseLocation);
 
   return {
     ...baseLocation,
-    fullAddress: composeFullAddress(baseLocation) || suggestion.label,
+    fullAddress:
+      administrativeLocation || isExactAddress ? structuredAddress || suggestion.label : suggestion.label,
   };
 }
 
