@@ -1,5 +1,5 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addressApi } from "@/features/passenger/addressService";
 import { passengerApi } from "@/features/passenger/api";
 import type {
   DeviceCoordinates,
@@ -14,9 +14,6 @@ const passengerKeys = {
   rideStatus: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-status"] as const,
   rideHistory: (passengerId: string) => [...passengerKeys.all(passengerId), "ride-history"] as const,
   notifications: (passengerId: string) => [...passengerKeys.all(passengerId), "notifications"] as const,
-  vietnamProvinces: () => ["passenger", "vietnam-provinces"] as const,
-  vietnamWards: (provinceCode: string | null) =>
-    ["passenger", "vietnam-wards", provinceCode] as const,
   locationSuggestions: (query: string, coordinates?: DeviceCoordinates | null) =>
     [
       "passenger",
@@ -133,23 +130,6 @@ export function useNormalizeVietnamLocation() {
   });
 }
 
-export function useVietnamProvinceOptions() {
-  return useQuery({
-    queryKey: passengerKeys.vietnamProvinces(),
-    queryFn: addressApi.getProvinces,
-    staleTime: 24 * 60 * 60 * 1_000,
-  });
-}
-
-export function useVietnamWardOptions(provinceCode: string | null) {
-  return useQuery({
-    queryKey: passengerKeys.vietnamWards(provinceCode),
-    queryFn: () => addressApi.getWards(provinceCode ?? ""),
-    enabled: provinceCode !== null,
-    staleTime: 24 * 60 * 60 * 1_000,
-  });
-}
-
 export function useVietnamLocationSuggestions(
   query: string,
   coordinates?: DeviceCoordinates | null,
@@ -161,6 +141,34 @@ export function useVietnamLocationSuggestions(
     queryFn: () => passengerApi.searchVietnamLocationSuggestions(trimmedQuery, coordinates),
     enabled: trimmedQuery.length >= 2,
     staleTime: 60_000,
+  });
+}
+
+function useDebouncedValue(value: string, delayMs = 350) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
+export function useDebouncedVietnamLocationSuggestions(
+  query: string,
+  coordinates?: DeviceCoordinates | null,
+) {
+  const debouncedQuery = useDebouncedValue(query);
+  const trimmedQuery = debouncedQuery.trim();
+
+  return useQuery({
+    queryKey: passengerKeys.locationSuggestions(trimmedQuery, coordinates),
+    queryFn: ({ signal }) =>
+      passengerApi.searchVietnamLocationSuggestions(trimmedQuery, coordinates, signal),
+    enabled: trimmedQuery.length >= 2,
+    staleTime: 5 * 60 * 1_000,
+    gcTime: 10 * 60 * 1_000,
   });
 }
 

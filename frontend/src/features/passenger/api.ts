@@ -365,6 +365,7 @@ export async function normalizeVietnamLocation(input: string): Promise<LocationN
 export async function searchVietnamLocationSuggestions(
   input: string,
   coordinates?: DeviceCoordinates | null,
+  signal?: AbortSignal,
 ): Promise<PassengerLocationSuggestion[]> {
   const query = input.trim();
   if (query.length < 2) {
@@ -391,7 +392,7 @@ export async function searchVietnamLocationSuggestions(
     params.bounded = 0;
   }
 
-  const response = await mapSearchClient.get<NominatimSearchItem[]>("/search", { params });
+  const response = await mapSearchClient.get<NominatimSearchItem[]>("/search", { params, signal });
 
   return response.data
     .map((item) => {

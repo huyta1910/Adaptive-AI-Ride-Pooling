@@ -80,6 +80,13 @@ export interface PassengerAddressPayload {
   ward: string;
 }
 
+export interface PassengerResolvedLocation extends PassengerAddressPayload {
+  fullAddress: string;
+  latitude: number | null;
+  longitude: number | null;
+  placeId: string;
+}
+
 export interface PassengerProfilePayload {
   display_name: string;
 }

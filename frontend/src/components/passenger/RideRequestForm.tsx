@@ -3,8 +3,9 @@ import { MapPin, Navigation } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { VietnamLocationField } from "@/components/passenger/VietnamLocationField";
+import { AddressAutocomplete } from "@/components/passenger/AddressAutocomplete";
 import { useRequestRide } from "@/features/passenger/hooks";
+import type { PassengerResolvedLocation } from "@/features/passenger/types";
 import {
   rideRequestSchema,
   type RideRequestFormValues,
@@ -43,6 +44,32 @@ export function RideRequestForm({ passengerId, disabled = false }: RideRequestFo
     form.reset();
   });
 
+  const applyLocation = (
+    prefix: "pickup" | "dropoff",
+    location: PassengerResolvedLocation,
+  ) => {
+    form.setValue(`${prefix}_label`, location.fullAddress, { shouldValidate: true });
+    form.setValue(
+      `${prefix}_address`,
+      {
+        houseNumber: location.houseNumber,
+        street: location.street,
+        province: location.province,
+        ward: location.ward,
+      },
+      { shouldValidate: true },
+    );
+    form.setValue(`${prefix}_latitude`, location.latitude, { shouldValidate: true });
+    form.setValue(`${prefix}_longitude`, location.longitude, { shouldValidate: true });
+  };
+
+  const updateLocationText = (prefix: "pickup" | "dropoff", value: string) => {
+    form.setValue(`${prefix}_label`, value, { shouldValidate: true });
+    form.setValue(`${prefix}_address`, emptyAddress, { shouldValidate: true });
+    form.setValue(`${prefix}_latitude`, null, { shouldValidate: true });
+    form.setValue(`${prefix}_longitude`, null, { shouldValidate: true });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -51,20 +78,15 @@ export function RideRequestForm({ passengerId, disabled = false }: RideRequestFo
       <CardContent>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">
-            <VietnamLocationField
+            <AddressAutocomplete
               label="Pickup"
               icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
               value={form.watch("pickup_label")}
-              onChange={(value) => form.setValue("pickup_label", value, { shouldValidate: true })}
-              onAddressChange={(address) =>
-                form.setValue("pickup_address", address, { shouldValidate: true })
-              }
-              onCoordinatesChange={(coordinates) => {
-                form.setValue("pickup_latitude", coordinates?.latitude ?? null);
-                form.setValue("pickup_longitude", coordinates?.longitude ?? null);
-              }}
-              placeholder="Current location or pickup area"
+              onChange={(value) => updateLocationText("pickup", value)}
+              onSelect={(location) => applyLocation("pickup", location)}
+              placeholder="Enter pickup address..."
               disabled={disabled || requestRide.isPending}
+              required
               error={
                 form.formState.errors.pickup_label?.message ??
                 form.formState.errors.pickup_address?.houseNumber?.message ??
@@ -75,20 +97,15 @@ export function RideRequestForm({ passengerId, disabled = false }: RideRequestFo
             />
           </div>
           <div className="grid gap-2">
-            <VietnamLocationField
+            <AddressAutocomplete
               label="Dropoff"
               icon={<Navigation className="h-4 w-4" aria-hidden="true" />}
               value={form.watch("dropoff_label")}
-              onChange={(value) => form.setValue("dropoff_label", value, { shouldValidate: true })}
-              onAddressChange={(address) =>
-                form.setValue("dropoff_address", address, { shouldValidate: true })
-              }
-              onCoordinatesChange={(coordinates) => {
-                form.setValue("dropoff_latitude", coordinates?.latitude ?? null);
-                form.setValue("dropoff_longitude", coordinates?.longitude ?? null);
-              }}
-              placeholder="Destination"
+              onChange={(value) => updateLocationText("dropoff", value)}
+              onSelect={(location) => applyLocation("dropoff", location)}
+              placeholder="Enter destination address..."
               disabled={disabled || requestRide.isPending}
+              required
               error={
                 form.formState.errors.dropoff_label?.message ??
                 form.formState.errors.dropoff_address?.houseNumber?.message ??
